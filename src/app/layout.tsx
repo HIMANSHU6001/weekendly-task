@@ -3,6 +3,7 @@ import './globals.css';
 import { Toaster } from '@/components/ui/toaster';
 import { AuthProvider } from '@/hooks/use-auth';
 import PWAInstallModal from '@/components/pwa/InstallPrompt';
+import ServiceWorkerRegister from '@/components/pwa/ServiceWorkerRegister';
 
 export const metadata: Metadata = {
   title: 'Weekendly',
@@ -71,6 +72,7 @@ export default function RootLayout({
     </head>
     <body className="font-body antialiased">
     <AuthProvider>
+      <ServiceWorkerRegister />
       <PWAInstallModal />
       {children}
       <Toaster />
