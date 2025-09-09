@@ -24,7 +24,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {cn} from "@/lib/utils";
 
-const colors = ["blue", "green", "red", "yellow", "purple", "pink"];
+const colors = ["#0000ff", "#00ff00", "#ff0000", "#ffff00", "#A020F0", "#ff00ff"];
 
 export function PlanManager() {
   const {plans, activePlanId, setActivePlanId, addPlan, removePlan} =

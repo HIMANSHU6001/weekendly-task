@@ -1,9 +1,8 @@
 "use client";
 
 import {SharePlan} from "./SharePlan";
-import {Waves, LogOut} from "lucide-react";
+import {LogOut} from "lucide-react";
 import {SidebarTrigger} from "@/components/ui/sidebar";
-import {useScheduleStore} from "@/store/scheduleStore";
 import {useAuth} from "@/hooks/use-auth";
 import {auth} from "@/lib/firebase";
 import {Button} from "@/components/ui/button";
@@ -16,13 +15,11 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import Logo from "../../public/icons/Logo";
 
 export function Header() {
-  const {plans, activePlanId} = useScheduleStore();
-  const activePlan = plans.find((p) => p.id === activePlanId);
   const {user} = useAuth();
 
-  const activeColor = activePlan?.color || "hsl(var(--primary))";
 
   const handleSignOut = async () => {
     await auth.signOut();
@@ -32,13 +29,9 @@ export function Header() {
     <header className="flex items-center justify-between p-4 border-b bg-card/80 backdrop-blur-sm sticky top-0 z-10">
       <div className="flex items-center gap-2">
         <SidebarTrigger/>
-        <Waves
-          className="h-7 w-7"
-          style={{color: activeColor}}
-        />
+        <Logo className='h-8 w-8'/>
         <h1
           className="text-xl md:text-2xl font-bold"
-          style={{color: activeColor}}
         >
           Weekendly
         </h1>

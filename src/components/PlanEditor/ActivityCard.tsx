@@ -4,7 +4,7 @@ import React, {useState} from "react";
 import type {ScheduledActivity, Day} from "@/lib/types";
 import {Card, CardContent} from "@/components/ui/card";
 import {Button} from "@/components/ui/button";
-import {GripVertical, Trash2, Pencil, MapPin} from "lucide-react";
+import {Trash2, Pencil, MapPin} from "lucide-react";
 import {useScheduleStore} from "@/store/scheduleStore";
 import {VIBES, ACTIVITIES} from "@/lib/data";
 import {
@@ -17,14 +17,18 @@ import {
 import {Input} from "@/components/ui/input";
 import {Label} from "@/components/ui/label";
 import {RadioGroup, RadioGroupItem} from "@/components/ui/radio-group";
+import {useSortable} from '@dnd-kit/sortable';
+import {CSS} from '@dnd-kit/utilities';
+import {cn} from "@/lib/utils";
 
 type ActivityCardProps = {
   activity: ScheduledActivity;
   day: Day;
+  isDragging?: boolean;
 };
 
-export function ActivityCard({activity, day}: ActivityCardProps) {
-  const {removeActivity, updateActivity, setDraggingActivityId} = useScheduleStore();
+export function ActivityCard({activity, day, isDragging = false}: ActivityCardProps) {
+  const {removeActivity, updateActivity} = useScheduleStore();
   const [isEditing, setIsEditing] = useState(false);
   const [editedTime, setEditedTime] = useState(activity.time);
   const [editedLocation, setEditedLocation] = useState(activity.location || "");
@@ -33,14 +37,24 @@ export function ActivityCard({activity, day}: ActivityCardProps) {
   const activityData = ACTIVITIES.find(a => a.id === activity.id);
   const ActivityIcon = activityData?.icon || activity.icon || (() => null);
 
-  const handleDragStart = (e: React.DragEvent<HTMLDivElement>) => {
-    e.dataTransfer.setData("text/plain", activity.instanceId);
-    e.dataTransfer.effectAllowed = "move";
-    setDraggingActivityId(activity.instanceId);
-  };
+  const vibeData = VIBES.find(a => a.id === activity.vibe.id);
+  const VibeIcon = vibeData?.icon || activity.vibe.icon || (() => null);
 
-  const handleDragEnd = () => {
-    setDraggingActivityId(null);
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging: isSortableDragging,
+  } = useSortable({
+    id: activity.instanceId,
+    disabled: isDragging,
+  });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
   };
 
   const handleUpdate = () => {
@@ -56,25 +70,29 @@ export function ActivityCard({activity, day}: ActivityCardProps) {
     setIsEditing(false);
   };
 
+  const showControls = !isDragging;
 
   return (
     <Dialog open={isEditing} onOpenChange={setIsEditing}>
       <Card
-        className="activity-card relative group transition-shadow duration-300 hover:shadow-xl"
-        draggable
-        onDragStart={handleDragStart}
-        onDragEnd={handleDragEnd}
+        ref={setNodeRef}
+        style={style}
+        {...attributes}
+        {...listeners}
+        className={cn(
+          "activity-card relative group transition-shadow duration-300 hover:shadow-lg cursor-grab ",
+          isSortableDragging && "opacity-50",
+          isDragging && "shadow-xl"
+        )}
       >
-        <CardContent className="p-4 flex items-start gap-4">
+        <CardContent className="p-4 flex items-start gap-4 h-full">
           <div
             className="absolute top-0 left-0 h-full w-2 rounded-l-lg"
-            style={{backgroundColor: activity.vibe.color}}
+            style={{backgroundColor: activity.category.color}}
           />
 
-          <GripVertical className="h-5 w-5 text-muted-foreground cursor-grab mt-1"/>
-
           <div className="flex-1 flex items-center gap-4">
-            <ActivityIcon className="h-8 w-8 text-primary"/>
+            <ActivityIcon className="h-8 w-8" style={{color: activity.category.color}}/>
             <div className="flex-1">
               <h3 className="font-bold">{activity.name}</h3>
               <p className="text-sm text-muted-foreground">{activity.time}</p>
@@ -88,21 +106,36 @@ export function ActivityCard({activity, day}: ActivityCardProps) {
           </div>
 
           <div
-            className="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-            <DialogTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-8 w-8">
-                <Pencil className="h-4 w-4"/>
-              </Button>
-            </DialogTrigger>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 hover:bg-destructive/10"
-              onClick={() => removeActivity(day, activity.instanceId)}
-            >
-              <Trash2 className="h-4 w-4 text-destructive"/>
-            </Button>
+            className="absolute bottom-2 right-2 flex items-center gap-1 transition-opacity">
+            <VibeIcon className="h-5 w-5 text-primary"/>
           </div>
+
+          {showControls && (
+            <div
+              className="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+              <DialogTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <Pencil className="h-4 w-4"/>
+                </Button>
+              </DialogTrigger>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 hover:bg-destructive/10"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  removeActivity(day, activity.instanceId);
+                }}
+              >
+                <Trash2 className="h-4 w-4 text-destructive"/>
+              </Button>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -132,7 +165,7 @@ export function ActivityCard({activity, day}: ActivityCardProps) {
                     <Label key={vibe.id} htmlFor={`vibe-${vibe.id}`}
                            className="flex items-center gap-2 cursor-pointer font-normal">
                       <RadioGroupItem value={vibe.id} id={`vibe-${vibe.id}`}/>
-                      <VibeRadioIcon className={`h-5 w-5 text-[${vibe.color}]`}/>
+                      <VibeRadioIcon className="h-5 w-5"/>
                       {vibe.name}
                     </Label>
                   )

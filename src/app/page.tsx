@@ -1,8 +1,8 @@
 "use client";
 
 import {Header} from "@/components/Header";
-import {Schedule} from "@/components/Schedule";
-import {ControlPanel} from "@/components/ControlPanel";
+import {Schedule} from "@/components/PlanEditor/Schedule";
+import {ControlPanel} from "@/components/ControlPanel/ControlPanel";
 import {Skeleton} from "@/components/ui/skeleton";
 import {
   SidebarProvider,

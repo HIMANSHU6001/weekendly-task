@@ -142,3 +142,8 @@
     background-color: #e7f3ff;
   }
 }
+
+.thin-scrollbar::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}

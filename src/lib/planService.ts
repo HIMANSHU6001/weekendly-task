@@ -50,6 +50,13 @@ class PlanService {
     }
   }
 
+  async getPublicPlan(userId: string, planId: string): Promise<Plan> {
+    const response = await fetch(`${this.baseUrl}/public/${userId}/${planId}`);
+    if (!response.ok) {
+      throw new Error('Failed to fetch public plan');
+    }
+    return response.json();
+  }
 }
 
 export const planService = new PlanService();

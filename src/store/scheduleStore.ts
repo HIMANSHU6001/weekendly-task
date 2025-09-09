@@ -8,7 +8,6 @@ import { auth } from "@/lib/firebase";
 type ScheduleState = {
     plans: Plan[];
     activePlanId: string | null;
-    draggingActivityId: string | null;
     draggingDayKey: string | null;
     hydrated: boolean;
     unsubscribe: (() => void) | null;
@@ -31,12 +30,8 @@ type ScheduleActions = {
     addActivity: (day: Day, activity: ScheduledActivity) => void;
     removeActivity: (day: Day, instanceId: string) => void;
     updateActivity: (day: Day, updatedActivity: ScheduledActivity) => void;
-    moveActivity: (
-      activityId: string,
-      targetDay: Day,
-      targetIndex: number
-    ) => void;
-    setDraggingActivityId: (id: string | null) => void;
+    reorderActivities: (day: Day, activities: ScheduledActivity[]) => void;
+    moveActivityBetweenDays: (activityInstanceId: string, fromDay: Day, toDay: Day, toIndex?: number) => void;
 
     // Day actions
     addDay: (dayName: string) => void;
@@ -56,7 +51,6 @@ export const useScheduleStore = create<ScheduleState & ScheduleActions>()(
   (set, get) => ({
       plans: [],
       activePlanId: null,
-      draggingActivityId: null,
       draggingDayKey: null,
       hydrated: false,
       unsubscribe: null,
@@ -276,40 +270,76 @@ export const useScheduleStore = create<ScheduleState & ScheduleActions>()(
           updatePlan(activePlanId, { schedule: newSchedule });
       },
 
-      moveActivity: (activityId, targetDay, targetIndex) => {
+      reorderActivities: (day, activities) => {
           const { activePlanId, plans, updatePlan } = get();
           if (!activePlanId) return;
           const activePlan = plans.find(p => p.id === activePlanId);
           if (!activePlan) return;
 
-          let activityToMove: ScheduledActivity | null = null;
-          let sourceDayKey = '';
+          const dayKey = day.toLowerCase().replace(/\s/g, '_');
+          const newSchedule = {
+              ...activePlan.schedule,
+              [dayKey]: activities
+          };
 
-          // Find and remove the activity from its current location
-          const updatedSchedule = { ...activePlan.schedule };
-          for (const [dayKey, activities] of Object.entries(updatedSchedule)) {
-              const activityIndex = activities.findIndex(a => a.instanceId === activityId);
-              if (activityIndex !== -1) {
-                  activityToMove = activities[activityIndex];
-                  sourceDayKey = dayKey;
-                  updatedSchedule[dayKey] = activities.filter(a => a.instanceId !== activityId);
-                  break;
-              }
-          }
+          // Optimistically update local state immediately
+          const optimisticPlans = plans.map(plan =>
+              plan.id === activePlanId ? { ...plan, schedule: newSchedule } : plan
+          );
+          set({ plans: optimisticPlans });
 
-          if (!activityToMove) return;
-
-          // Add the activity to the target day at the specified index
-          const targetDayKey = targetDay.toLowerCase().replace(/\s/g, '_');
-          if (!updatedSchedule[targetDayKey]) {
-              updatedSchedule[targetDayKey] = [];
-          }
-
-          updatedSchedule[targetDayKey].splice(targetIndex, 0, activityToMove);
-          updatePlan(activePlanId, { schedule: updatedSchedule });
+          // Then sync with server
+          updatePlan(activePlanId, { schedule: newSchedule });
       },
 
-      setDraggingActivityId: (id) => set({ draggingActivityId: id }),
+      moveActivityBetweenDays: (activityInstanceId, fromDay, toDay, toIndex) => {
+          const { activePlanId, plans, updatePlan } = get();
+          if (!activePlanId) return;
+          const activePlan = plans.find(p => p.id === activePlanId);
+          if (!activePlan) return;
+
+          const fromDayKey = fromDay.toLowerCase().replace(/\s/g, '_');
+          const toDayKey = toDay.toLowerCase().replace(/\s/g, '_');
+
+          const fromActivities = activePlan.schedule[fromDayKey] || [];
+          const toActivities = activePlan.schedule[toDayKey] || [];
+
+          // Find the activity to move
+          const activityToMove = fromActivities.find(activity => activity.instanceId === activityInstanceId);
+          if (!activityToMove) return;
+
+          // Remove the activity from the original day
+          const newFromActivities = fromActivities.filter(activity => activity.instanceId !== activityInstanceId);
+
+          // Add the activity to the target day
+          let newToActivities;
+          if (typeof toIndex === 'number' && toIndex >= 0 && toIndex <= toActivities.length) {
+              // Insert at specific index
+              newToActivities = [
+                  ...toActivities.slice(0, toIndex),
+                  activityToMove,
+                  ...toActivities.slice(toIndex)
+              ];
+          } else {
+              // Append to the end
+              newToActivities = [...toActivities, activityToMove];
+          }
+
+          const newSchedule = {
+              ...activePlan.schedule,
+              [fromDayKey]: newFromActivities,
+              [toDayKey]: newToActivities
+          };
+
+          // Optimistically update local state immediately
+          const optimisticPlans = plans.map(plan =>
+              plan.id === activePlanId ? { ...plan, schedule: newSchedule } : plan
+          );
+          set({ plans: optimisticPlans });
+
+          // Then sync with server
+          updatePlan(activePlanId, { schedule: newSchedule });
+      },
 
       moveDay: (draggedDayKey, targetDayKey) => {
           const { activePlanId, plans, updatePlan } = get();

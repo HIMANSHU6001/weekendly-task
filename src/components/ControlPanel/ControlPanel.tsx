@@ -1,7 +1,7 @@
 "use client";
 
-import {CategorySelector} from "@/components/CategorySelector";
-import {ActivitySelector} from "@/components/ActivitySelector";
+import {CategorySelector} from "@/components/ControlPanel/CategorySelector";
+import {ActivitySelector} from "@/components/ControlPanel/ActivitySelector";
 import {PlanManager} from "./PlanManager";
 import {Separator} from "@/components/ui/separator";
 

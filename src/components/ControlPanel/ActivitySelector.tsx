@@ -42,24 +42,22 @@ export function ActivitySelector() {
     },
   });
 
-  // Configure fuzzy search
   const fuse = useMemo(() => {
     const categoryFilteredActivities = selectedCategory === "all"
       ? ACTIVITIES
-      : ACTIVITIES.filter(activity => activity.category === selectedCategory);
+      : ACTIVITIES.filter(activity => activity.category.value === selectedCategory);
 
     return new Fuse(categoryFilteredActivities, {
       keys: ['name'],
-      threshold: 0.4, // Adjust for fuzziness (0 = exact match, 1 = very fuzzy)
+      threshold: 0.4,
       includeScore: true,
     });
   }, [selectedCategory]);
 
-  // Filter activities based on category and search query
   const filteredActivities = useMemo(() => {
     const categoryFilteredActivities = selectedCategory === "all"
       ? ACTIVITIES
-      : ACTIVITIES.filter(activity => activity.category === selectedCategory);
+      : ACTIVITIES.filter(activity => activity.category.value === selectedCategory);
 
     if (!searchQuery.trim()) {
       return categoryFilteredActivities;
@@ -104,6 +102,7 @@ export function ActivitySelector() {
     }
 
     const vibe = VIBES.find((v) => v.id === vibeId);
+
     if (vibe) {
       addActivity(firstDay, {
         ...activity,
@@ -111,6 +110,7 @@ export function ActivitySelector() {
         time,
         vibe,
         location,
+        category: activity.category,
       });
       toast({
         title: `Added "${activity.name}"`,
@@ -156,10 +156,11 @@ export function ActivitySelector() {
                   <PopoverTrigger asChild>
                     <Button
                       variant="ghost"
-                      className="w-full justify-start gap-4"
+                      className={`w-full justify-start gap-4 rounded-none border-l-3 bg-gray-100`}
+                      style={{borderColor: activity.category.color}}
                       disabled={!activePlanId}
                     >
-                      <ActivityIcon className="h-5 w-5 text-primary/80"/>
+                      <ActivityIcon className="h-5 w-5 text-primary/80" style={{color: activity.category.color}}/>
                       <span className="flex-1 text-left">{activity.name}</span>
                       <Plus className="h-4 w-4"/>
                     </Button>
@@ -238,8 +239,7 @@ export function ActivitySelector() {
                                           htmlFor={`vibe-popover-${activity.id}-${vibe.id}`}
                                           className="font-normal flex items-center gap-2 cursor-pointer"
                                         >
-                                          <VibeIcon
-                                            className={`h-5 w-5 text-[${vibe.color}]`}/>
+                                          <VibeIcon className="h-5 w-5"/>
                                           {vibe.name}
                                         </FormLabel>
                                       </FormItem>
