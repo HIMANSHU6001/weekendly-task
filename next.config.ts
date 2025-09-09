@@ -26,7 +26,6 @@ const nextConfig: NextConfig = {
     imageSizes: [16, 32, 48, 64, 96, 128, 256, 384],
     remotePatterns: [
       { protocol: 'https', hostname: 'res.cloudinary.com' },
-      { protocol: 'https', hostname: 'soundpark-server-611356491111.asia-south1.run.app' },
       { protocol: 'http', hostname: 'localhost' },
       { protocol: 'https', hostname: 'i.scdn.co' },
       { protocol: 'https', hostname: 'cdn-images.dzcdn.net' },
