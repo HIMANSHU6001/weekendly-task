@@ -1,15 +1,9 @@
 "use client";
 
 import { create } from "zustand";
-import type { ScheduledActivity, Day, Theme, Plan } from "@/lib/types";
-import {
-    doc,
-    setDoc,
-    deleteDoc,
-    collection,
-    onSnapshot,
-} from "firebase/firestore";
-import { db, auth } from "@/lib/firebase";
+import type { ScheduledActivity, Day, Category, Plan } from "@/lib/types";
+import { planService } from "@/lib/planService";
+import { auth } from "@/lib/firebase";
 
 type ScheduleState = {
     plans: Plan[];
@@ -18,11 +12,13 @@ type ScheduleState = {
     draggingDayKey: string | null;
     hydrated: boolean;
     unsubscribe: (() => void) | null;
+    loading: boolean;
+    error: string | null;
 };
 
 type ScheduleActions = {
-    // Firestore sync
-    syncWithFirestore: () => void;
+    // API sync methods
+    loadPlans: () => Promise<void>;
 
     // Plan actions
     setPlans: (plans: Plan[]) => void;
@@ -36,9 +32,9 @@ type ScheduleActions = {
     removeActivity: (day: Day, instanceId: string) => void;
     updateActivity: (day: Day, updatedActivity: ScheduledActivity) => void;
     moveActivity: (
-        activityId: string,
-        targetDay: Day,
-        targetIndex: number
+      activityId: string,
+      targetDay: Day,
+      targetIndex: number
     ) => void;
     setDraggingActivityId: (id: string | null) => void;
 
@@ -48,228 +44,352 @@ type ScheduleActions = {
     moveDay: (draggedDayKey: string, targetDayKey: string) => void;
     setDraggingDayKey: (key: string | null) => void;
 
-    // Theme
-    setTheme: (theme: Theme) => void;
-};
+    // Category
+    setCategory: (category: Category) => void;
 
-const defaultPlan: Omit<Plan, 'id'> = {
-    name: "My First Weekend",
-    color: "blue",
-    schedule: {
-        saturday: [],
-        sunday: [],
-    },
-    theme: "default",
+    // Error handling
+    setError: (error: string | null) => void;
+    setLoading: (loading: boolean) => void;
 };
 
 export const useScheduleStore = create<ScheduleState & ScheduleActions>()(
-    (set, get) => ({
-        plans: [],
-        activePlanId: null,
-        draggingActivityId: null,
-        draggingDayKey: null,
-        hydrated: false,
-        unsubscribe: null,
+  (set, get) => ({
+      plans: [],
+      activePlanId: null,
+      draggingActivityId: null,
+      draggingDayKey: null,
+      hydrated: false,
+      unsubscribe: null,
+      loading: false,
+      error: null,
 
-        syncWithFirestore: () => {
-            const { currentUser } = auth;
-            if (!currentUser) return;
+      loadPlans: async () => {
+          const { currentUser } = auth;
+          if (!currentUser) return;
 
-            const prevUnsubscribe = get().unsubscribe;
-            if (prevUnsubscribe) prevUnsubscribe();
+          try {
+              set({ loading: true, error: null });
+              const plans = await planService.getPlans(currentUser.uid);
+              set({ plans, hydrated: true });
 
-            const plansCollection = collection(db, "users", currentUser.uid, "plans");
-            const unsubscribe = onSnapshot(plansCollection, (snapshot) => {
-                if (snapshot.empty) {
-                    // Create default plan if none exist
-                    const newPlanId = "default_plan";
-                    setDoc(doc(db, "users", currentUser.uid, "plans", newPlanId), defaultPlan);
-                } else {
-                    const plans = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })) as Plan[];
-                    set({ plans });
-                    if (!get().activePlanId || !plans.some(p => p.id === get().activePlanId)) {
-                        set({ activePlanId: plans[0]?.id || null });
-                    }
-                }
-                set({ hydrated: true });
-            });
-            set({unsubscribe});
-        },
+              const state = get();
+              if (!state.activePlanId && plans.length > 0) {
+                  set({ activePlanId: plans[0].id });
+              }
+          } catch (error) {
+              console.error('Error loading plans:', error);
+              set({ error: 'Failed to load plans' });
+          } finally {
+              set({ loading: false });
+          }
+      },
 
-        setPlans: (plans) => set({ plans }),
+      setPlans: (plans) => set({ plans }),
 
-        setActivePlanId: (planId) => set({ activePlanId: planId }),
+      setActivePlanId: (planId) => set({ activePlanId: planId }),
 
-        addPlan: async (name, color) => {
-            const { currentUser } = auth;
-            if (!currentUser) return;
+      addPlan: async (name, color) => {
+          const { currentUser } = auth;
+          if (!currentUser) return;
 
-            const newPlanId = crypto.randomUUID();
-            const newPlan: Plan = {
-                id: newPlanId,
-                name,
-                color,
-                schedule: { saturday: [], sunday: [] },
-                theme: "default",
-            };
-            const planRef = doc(db, "users", currentUser.uid, "plans", newPlanId);
-            await setDoc(planRef, newPlan);
-            set({ activePlanId: newPlanId });
-        },
+          const optimisticPlanId = `temp_${crypto.randomUUID()}`;
+          const optimisticPlan = {
+              id: optimisticPlanId,
+              name,
+              color,
+              schedule: { saturday: [], sunday: [] },
+              category: "all" as const,
+          };
 
-        removePlan: async (planId) => {
-            const { currentUser } = auth;
-            if (!currentUser) return;
+          const currentState = get();
+          set({
+              plans: [...currentState.plans, optimisticPlan],
+              activePlanId: optimisticPlanId,
+              error: null
+          });
 
-            await deleteDoc(doc(db, "users", currentUser.uid, "plans", planId));
-        },
+          try {
+              const newPlan = await planService.createPlan(currentUser.uid, name, color);
 
-        updatePlan: async (planId, updates) => {
-            const { currentUser } = auth;
-            if (!currentUser) return;
+              const updatedState = get();
+              const updatedPlans = updatedState.plans.map(plan =>
+                  plan.id === optimisticPlanId ? newPlan : plan
+              );
 
-            const planRef = doc(db, "users", currentUser.uid, "plans", planId);
-            // We get the current plan and merge updates
-            const currentPlan = get().plans.find(p => p.id === planId);
-            if(currentPlan) {
-                await setDoc(planRef, { ...currentPlan, ...updates }, { merge: true });
-            }
-        },
+              set({
+                  plans: updatedPlans,
+                  activePlanId: newPlan.id
+              });
+          } catch (error) {
+              console.error('Error adding plan:', error);
 
-        setTheme: (theme) => {
-            const { activePlanId, updatePlan } = get();
-            if (activePlanId) {
-                updatePlan(activePlanId, { theme });
-            }
-        },
+              // Rollback optimistic update on error
+              const rollbackState = get();
+              const rollbackPlans = rollbackState.plans.filter(plan => plan.id !== optimisticPlanId);
+              const newActivePlanId = rollbackPlans.length > 0 ? rollbackPlans[0].id : null;
 
-        addActivity: (day, activity) => {
-            const { activePlanId, plans, updatePlan } = get();
-            if (!activePlanId) return;
-            const activePlan = plans.find(p => p.id === activePlanId);
-            if (!activePlan) return;
+              set({
+                  plans: rollbackPlans,
+                  activePlanId: newActivePlanId,
+                  error: 'Failed to create plan'
+              });
+          }
+      },
 
-            const newSchedule = { ...activePlan.schedule };
-            newSchedule[day] = [...(newSchedule[day] || []), activity];
-            updatePlan(activePlanId, { schedule: newSchedule });
-        },
+      removePlan: async (planId) => {
+          const { currentUser } = auth;
+          if (!currentUser) return;
 
-        removeActivity: (day, instanceId) => {
-            const { activePlanId, plans, updatePlan } = get();
-            if (!activePlanId) return;
-            const activePlan = plans.find(p => p.id === activePlanId);
-            if (!activePlan) return;
+          const currentState = get();
+          const planToRemove = currentState.plans.find(p => p.id === planId);
 
-            const newSchedule = { ...activePlan.schedule };
-            newSchedule[day] = newSchedule[day].filter(act => act.instanceId !== instanceId);
-            updatePlan(activePlanId, { schedule: newSchedule });
-        },
+          if (!planToRemove) return;
 
-        updateActivity: (day, updatedActivity) => {
-            const { activePlanId, plans, updatePlan } = get();
-            if (!activePlanId) return;
-            const activePlan = plans.find(p => p.id === activePlanId);
-            if (!activePlan) return;
+          // Optimistically update UI immediately
+          const optimisticPlans = currentState.plans.filter(p => p.id !== planId);
+          const newActivePlanId = currentState.activePlanId === planId
+              ? (optimisticPlans[0]?.id || null)
+              : currentState.activePlanId;
 
-            const newSchedule = { ...activePlan.schedule };
-            newSchedule[day] = newSchedule[day].map((act) =>
-                act.instanceId === updatedActivity.instanceId ? updatedActivity : act
-            );
-            updatePlan(activePlanId, { schedule: newSchedule });
-        },
+          set({
+              plans: optimisticPlans,
+              activePlanId: newActivePlanId,
+              error: null
+          });
 
-        setDraggingActivityId: (id) => set({ draggingActivityId: id }),
+          try {
+              // Make the actual API call
+              await planService.deletePlan(currentUser.uid, planId);
+              // Success - optimistic update was correct, no need to change anything
+          } catch (error) {
+              console.error('Error removing plan:', error);
 
-        moveActivity: (instanceId, targetDay, targetIndex) => {
-            const { activePlanId, plans, updatePlan } = get();
-            if (!activePlanId) return;
-            const activePlan = plans.find(p => p.id === activePlanId);
-            if (!activePlan) return;
+              // Rollback optimistic update on error
+              set({
+                  plans: currentState.plans,
+                  activePlanId: currentState.activePlanId,
+                  error: 'Failed to delete plan'
+              });
+          }
+      },
 
-            let activityToMove: ScheduledActivity | undefined;
-            const newSchedule = { ...activePlan.schedule };
+      updatePlan: async (planId, updates) => {
+          const { currentUser } = auth;
+          if (!currentUser) return;
 
-            for (const day in newSchedule) {
-                const typedDay = day as Day;
-                const foundActivity = newSchedule[typedDay].find(act => act.instanceId === instanceId);
-                if (foundActivity) {
-                    activityToMove = foundActivity;
-                    newSchedule[typedDay] = newSchedule[typedDay].filter(act => act.instanceId !== instanceId);
-                    break;
-                }
-            }
+          const currentState = get();
+          const planToUpdate = currentState.plans.find(p => p.id === planId);
 
-            if (activityToMove) {
-                const destinationActivities = [...(newSchedule[targetDay] || [])];
-                destinationActivities.splice(targetIndex, 0, activityToMove);
-                newSchedule[targetDay] = destinationActivities;
-                updatePlan(activePlanId, { schedule: newSchedule });
-            }
-        },
+          if (!planToUpdate) return;
 
-        setDraggingDayKey: (key) => set({ draggingDayKey: key }),
+          // Optimistically update UI immediately
+          const optimisticPlans = currentState.plans.map(plan =>
+              plan.id === planId ? { ...plan, ...updates } : plan
+          );
 
-        moveDay: (draggedDayKey, targetDayKey) => {
-            const { activePlanId, plans, updatePlan } = get();
-            if (!activePlanId) return;
-            const activePlan = plans.find(p => p.id === activePlanId);
-            if (!activePlan) return;
+          set({
+              plans: optimisticPlans,
+              error: null
+          });
 
-            const schedule = activePlan.schedule;
-            const scheduleEntries = Object.entries(schedule);
+          try {
+              // Make the actual API call
+              await planService.updatePlan(currentUser.uid, planId, updates);
+              // Success - optimistic update was correct, no need to change anything
+          } catch (error) {
+              console.error('Error updating plan:', error);
 
-            const draggedIndex = scheduleEntries.findIndex(([key]) => key === draggedDayKey);
-            const targetIndex = scheduleEntries.findIndex(([key]) => key === targetDayKey);
+              // Rollback optimistic update on error
+              set({
+                  plans: currentState.plans,
+                  error: 'Failed to update plan'
+              });
+          }
+      },
 
-            if (draggedIndex === -1 || targetIndex === -1) return;
+      addActivity: (day, activity) => {
+          const { activePlanId, plans, updatePlan } = get();
+          if (!activePlanId) return;
+          const activePlan = plans.find(p => p.id === activePlanId);
+          if (!activePlan) return;
 
-            const [draggedItem] = scheduleEntries.splice(draggedIndex, 1);
-            scheduleEntries.splice(targetIndex, 0, draggedItem);
+          const dayKey = day.toLowerCase().replace(/\s/g, '_');
+          const currentActivities = activePlan.schedule[dayKey] || [];
+          const newSchedule = {
+              ...activePlan.schedule,
+              [dayKey]: [...currentActivities, activity]
+          };
 
-            const newSchedule = scheduleEntries.reduce((acc, [key, value]) => {
-                acc[key] = value;
-                return acc;
-            }, {} as Record<Day, ScheduledActivity[]>);
+          const optimisticPlans = plans.map(plan =>
+              plan.id === activePlanId ? { ...plan, schedule: newSchedule } : plan
+          );
+          set({ plans: optimisticPlans });
 
-            updatePlan(activePlanId, { schedule: newSchedule });
-        },
+          updatePlan(activePlanId, { schedule: newSchedule });
+      },
 
-        addDay: (dayName) => {
-            const { activePlanId, plans, updatePlan } = get();
-            if (!activePlanId) return;
-            const activePlan = plans.find(p => p.id === activePlanId);
-            if (!activePlan) return;
+      removeActivity: (day, instanceId) => {
+          const { activePlanId, plans, updatePlan } = get();
+          if (!activePlanId) return;
+          const activePlan = plans.find(p => p.id === activePlanId);
+          if (!activePlan) return;
 
-            const newDayKey = dayName.toLowerCase().replace(/\s/g, '_');
-            if (activePlan.schedule[newDayKey]) {
-                return; // Day already exists
-            }
+          const dayKey = day.toLowerCase().replace(/\s/g, '_');
+          const currentActivities = activePlan.schedule[dayKey] || [];
+          const newSchedule = {
+              ...activePlan.schedule,
+              [dayKey]: currentActivities.filter(activity => activity.instanceId !== instanceId)
+          };
 
-            const newSchedule = { ...activePlan.schedule, [newDayKey]: [] };
-            updatePlan(activePlanId, { schedule: newSchedule });
-        },
+          // Optimistically update local state immediately
+          const optimisticPlans = plans.map(plan =>
+              plan.id === activePlanId ? { ...plan, schedule: newSchedule } : plan
+          );
+          set({ plans: optimisticPlans });
 
-        removeDay: (dayName) => {
-            const { activePlanId, plans, updatePlan } = get();
-            if (!activePlanId) return;
-            const activePlan = plans.find(p => p.id === activePlanId);
-            if (!activePlan) return;
+          // Then sync with server
+          updatePlan(activePlanId, { schedule: newSchedule });
+      },
 
-            const newSchedule = { ...activePlan.schedule };
-            delete newSchedule[dayName];
-            updatePlan(activePlanId, { schedule: newSchedule });
-        },
-    })
+      updateActivity: (day, updatedActivity) => {
+          const { activePlanId, plans, updatePlan } = get();
+          if (!activePlanId) return;
+          const activePlan = plans.find(p => p.id === activePlanId);
+          if (!activePlan) return;
+
+          const dayKey = day.toLowerCase().replace(/\s/g, '_');
+          const currentActivities = activePlan.schedule[dayKey] || [];
+          const newSchedule = {
+              ...activePlan.schedule,
+              [dayKey]: currentActivities.map(activity =>
+                  activity.instanceId === updatedActivity.instanceId ? updatedActivity : activity
+              )
+          };
+
+          // Optimistically update local state immediately
+          const optimisticPlans = plans.map(plan =>
+              plan.id === activePlanId ? { ...plan, schedule: newSchedule } : plan
+          );
+          set({ plans: optimisticPlans });
+
+          // Then sync with server
+          updatePlan(activePlanId, { schedule: newSchedule });
+      },
+
+      moveActivity: (activityId, targetDay, targetIndex) => {
+          const { activePlanId, plans, updatePlan } = get();
+          if (!activePlanId) return;
+          const activePlan = plans.find(p => p.id === activePlanId);
+          if (!activePlan) return;
+
+          let activityToMove: ScheduledActivity | null = null;
+          let sourceDayKey = '';
+
+          // Find and remove the activity from its current location
+          const updatedSchedule = { ...activePlan.schedule };
+          for (const [dayKey, activities] of Object.entries(updatedSchedule)) {
+              const activityIndex = activities.findIndex(a => a.instanceId === activityId);
+              if (activityIndex !== -1) {
+                  activityToMove = activities[activityIndex];
+                  sourceDayKey = dayKey;
+                  updatedSchedule[dayKey] = activities.filter(a => a.instanceId !== activityId);
+                  break;
+              }
+          }
+
+          if (!activityToMove) return;
+
+          // Add the activity to the target day at the specified index
+          const targetDayKey = targetDay.toLowerCase().replace(/\s/g, '_');
+          if (!updatedSchedule[targetDayKey]) {
+              updatedSchedule[targetDayKey] = [];
+          }
+
+          updatedSchedule[targetDayKey].splice(targetIndex, 0, activityToMove);
+          updatePlan(activePlanId, { schedule: updatedSchedule });
+      },
+
+      setDraggingActivityId: (id) => set({ draggingActivityId: id }),
+
+      moveDay: (draggedDayKey, targetDayKey) => {
+          const { activePlanId, plans, updatePlan } = get();
+          if (!activePlanId) return;
+          const activePlan = plans.find(p => p.id === activePlanId);
+          if (!activePlan) return;
+
+          const schedule = activePlan.schedule;
+          const dayKeys = Object.keys(schedule);
+          const draggedIndex = dayKeys.indexOf(draggedDayKey);
+          const targetIndex = dayKeys.indexOf(targetDayKey);
+
+          if (draggedIndex === -1 || targetIndex === -1) return;
+
+          const newDayKeys = [...dayKeys];
+          newDayKeys.splice(draggedIndex, 1);
+          newDayKeys.splice(targetIndex, 0, draggedDayKey);
+
+          const newSchedule: { [key: string]: ScheduledActivity[] } = {};
+          newDayKeys.forEach(key => {
+              newSchedule[key] = schedule[key];
+          });
+
+          updatePlan(activePlanId, { schedule: newSchedule });
+      },
+
+      setDraggingDayKey: (key) => set({ draggingDayKey: key }),
+
+      setCategory: (category) => {
+          const { activePlanId, updatePlan } = get();
+          if (!activePlanId) return;
+          updatePlan(activePlanId, { category });
+      },
+
+      addDay: (dayName) => {
+          const { activePlanId, plans, updatePlan } = get();
+          if (!activePlanId) return;
+          const activePlan = plans.find(p => p.id === activePlanId);
+          if (!activePlan) return;
+
+          const newDayKey = dayName.toLowerCase().replace(/\s/g, '_');
+          if (activePlan.schedule[newDayKey]) {
+              return; // Day already exists
+          }
+
+          const newSchedule = { ...activePlan.schedule, [newDayKey]: [] };
+          updatePlan(activePlanId, { schedule: newSchedule });
+      },
+
+      removeDay: (dayName) => {
+          const { activePlanId, plans, updatePlan } = get();
+          if (!activePlanId) return;
+          const activePlan = plans.find(p => p.id === activePlanId);
+          if (!activePlan) return;
+
+          const newSchedule = { ...activePlan.schedule };
+          delete newSchedule[dayName];
+          updatePlan(activePlanId, { schedule: newSchedule });
+      },
+
+      setError: (error) => set({ error }),
+      setLoading: (loading) => set({ loading }),
+  })
 );
 
 // Listen to auth changes to sync data
 auth.onAuthStateChanged((user) => {
     if (user) {
-        useScheduleStore.getState().syncWithFirestore();
+        useScheduleStore.getState().loadPlans();
     } else {
         // Clear state on logout
         const prevUnsubscribe = useScheduleStore.getState().unsubscribe;
         if (prevUnsubscribe) prevUnsubscribe();
-        useScheduleStore.setState({ plans: [], activePlanId: null, hydrated: false, unsubscribe: null });
+        useScheduleStore.setState({
+            plans: [],
+            activePlanId: null,
+            hydrated: false,
+            unsubscribe: null,
+            error: null,
+            loading: false
+        });
     }
 });

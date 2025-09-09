@@ -4,6 +4,7 @@ export type Activity = {
     id: string;
     name: string;
     icon: LucideIcon;
+    category: Category;
 };
 
 export type Vibe = {
@@ -22,10 +23,10 @@ export type ScheduledActivity = Activity & {
 
 export type Day = string;
 
-export type Theme = "lazy" | "adventurous" | "family" | "default";
+export type Category = "lazy" | "adventurous" | "family" | "all";
 
-export type ThemeInfo = {
-    value: Theme;
+export type CategoryInfo = {
+    value: Category;
     label: string;
 };
 
@@ -34,5 +35,5 @@ export type Plan = {
     name: string;
     color: string;
     schedule: Record<Day, ScheduledActivity[]>;
-    theme: Theme;
+    category: Category;
 };

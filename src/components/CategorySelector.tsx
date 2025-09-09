@@ -1,7 +1,6 @@
 "use client";
 
 import { useScheduleStore } from "@/store/scheduleStore";
-import type { Theme } from "@/lib/types";
 import {
     Select,
     SelectContent,
@@ -10,19 +9,20 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { THEMES } from "@/lib/data";
+import {Category} from "@/lib/types";
+import {CATEGORIES} from "@/lib/data";
 
-export function ThemeSelector() {
-    const { activePlanId, plans, setTheme } = useScheduleStore();
+export function CategorySelector() {
+    const { activePlanId, plans, setCategory } = useScheduleStore();
     const activePlan = plans.find((p) => p.id === activePlanId);
-    const theme = activePlan?.theme || "default";
+    const category = activePlan?.category || "all";
 
     if (!activePlanId) {
         return (
             <div className="space-y-2 px-2">
-                <Label htmlFor="theme-selector">Personalize Your Plan</Label>
+                <Label htmlFor="category-selector">Select a category</Label>
                 <Select disabled>
-                    <SelectTrigger id="theme-selector" className="w-full">
+                    <SelectTrigger id="category-selector" className="w-full">
                         <SelectValue placeholder="Select a plan first" />
                     </SelectTrigger>
                 </Select>
@@ -32,13 +32,13 @@ export function ThemeSelector() {
 
     return (
         <div className="space-y-2 px-2">
-            <Label htmlFor="theme-selector">Personalize Your Plan</Label>
-            <Select value={theme} onValueChange={(value: Theme) => setTheme(value)}>
-                <SelectTrigger id="theme-selector" className="w-full">
-                    <SelectValue placeholder="Select a theme" />
+            <Label htmlFor="category-selector">Select a category</Label>
+            <Select value={category} onValueChange={(value: Category) => setCategory(value)}>
+                <SelectTrigger id="category-selector" className="w-full">
+                    <SelectValue placeholder="Select a category" />
                 </SelectTrigger>
                 <SelectContent>
-                    {THEMES.map((t) => (
+                    {CATEGORIES.map((t) => (
                         <SelectItem key={t.value} value={t.value}>
                             {t.label}
                         </SelectItem>

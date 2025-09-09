@@ -1,6 +1,5 @@
 "use client";
 
-import {useScheduleStore} from "@/store/scheduleStore";
 import {Header} from "@/components/Header";
 import {Schedule} from "@/components/Schedule";
 import {ControlPanel} from "@/components/ControlPanel";
@@ -17,15 +16,8 @@ import {Login} from "@/components/Login";
 
 export default function Home() {
   const {user, loading} = useAuth();
-  const {theme, hydrated} = useScheduleStore((state) => {
-    const activePlan = state.plans.find((p) => p.id === state.activePlanId);
-    return {
-      theme: activePlan?.theme || "default",
-      hydrated: state.hydrated,
-    };
-  });
 
-  if (loading || !hydrated) {
+  if (loading) {
     return (
       <div className="flex flex-col min-h-screen">
         <header className="flex items-center justify-between p-4 border-b">
@@ -70,7 +62,7 @@ export default function Home() {
   }
 
   return (
-    <div className={`theme-${theme} min-h-screen bg-background`}>
+    <div className={`min-h-screen bg-background`}>
       <SidebarProvider>
         <Sidebar>
           <SidebarHeader/>
