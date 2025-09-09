@@ -4,6 +4,7 @@ import { create } from "zustand";
 import type { ScheduledActivity, Day, Category, Plan } from "@/lib/types";
 import { planService } from "@/lib/planService";
 import { auth } from "@/lib/firebase";
+import { offlineManager, type OfflineAction } from "@/lib/offlineManager";
 
 type ScheduleState = {
     plans: Plan[];
@@ -63,12 +64,26 @@ export const useScheduleStore = create<ScheduleState & ScheduleActions>()(
 
           try {
               set({ loading: true, error: null });
-              const plans = await planService.getPlans(currentUser.uid);
-              set({ plans, hydrated: true });
+
+              // Try to fetch plans with offline support
+              const { data: plans, isOffline } = await offlineManager.fetchWithOfflineSupport(
+                  `/api/plans?userId=${currentUser.uid}`
+              );
+
+              set({
+                  plans,
+                  hydrated: true,
+                  error: isOffline ? 'Using offline data' : null
+              });
 
               const state = get();
               if (!state.activePlanId && plans.length > 0) {
                   set({ activePlanId: plans[0].id });
+              }
+
+              // Cache plans for offline use
+              if (!isOffline) {
+                  plans.forEach((plan: any) => offlineManager.cachePlan(plan));
               }
           } catch (error) {
               console.error('Error loading plans:', error);
@@ -103,17 +118,49 @@ export const useScheduleStore = create<ScheduleState & ScheduleActions>()(
           });
 
           try {
-              const newPlan = await planService.createPlan(currentUser.uid, name, color);
+              if (offlineManager.isOnline) {
+                  const newPlan = await planService.createPlan(currentUser.uid, name, color);
 
-              const updatedState = get();
-              const updatedPlans = updatedState.plans.map(plan =>
-                  plan.id === optimisticPlanId ? newPlan : plan
-              );
+                  const updatedState = get();
+                  const updatedPlans = updatedState.plans.map(plan =>
+                      plan.id === optimisticPlanId ? newPlan : plan
+                  );
 
-              set({
-                  plans: updatedPlans,
-                  activePlanId: newPlan.id
-              });
+                  set({
+                      plans: updatedPlans,
+                      activePlanId: newPlan.id
+                  });
+
+                  // Cache the new plan for offline use
+                  await offlineManager.cachePlan(newPlan);
+              } else {
+                  // We're offline, queue the action for later sync
+                  const offlineAction: OfflineAction = {
+                      type: 'CREATE',
+                      endpoint: `/api/plans`,
+                      method: 'POST',
+                      data: { name, color, userId: currentUser.uid },
+                      timestamp: Date.now()
+                  };
+
+                  await offlineManager.queueAction(offlineAction);
+
+                  // Update the optimistic plan with offline indicator
+                  const finalPlan = { ...optimisticPlan, id: crypto.randomUUID() };
+                  const updatedState = get();
+                  const updatedPlans = updatedState.plans.map(plan =>
+                      plan.id === optimisticPlanId ? finalPlan : plan
+                  );
+
+                  set({
+                      plans: updatedPlans,
+                      activePlanId: finalPlan.id,
+                      error: 'Plan created offline - will sync when online'
+                  });
+
+                  // Cache for offline use
+                  await offlineManager.cachePlan(finalPlan);
+              }
           } catch (error) {
               console.error('Error adding plan:', error);
 
@@ -152,9 +199,21 @@ export const useScheduleStore = create<ScheduleState & ScheduleActions>()(
           });
 
           try {
-              // Make the actual API call
-              await planService.deletePlan(currentUser.uid, planId);
-              // Success - optimistic update was correct, no need to change anything
+              if (offlineManager.isOnline) {
+                  await planService.deletePlan(currentUser.uid, planId);
+              } else {
+                  // Queue for sync when online
+                  const offlineAction: OfflineAction = {
+                      type: 'DELETE',
+                      endpoint: `/api/plans/${planId}`,
+                      method: 'DELETE',
+                      planId,
+                      timestamp: Date.now()
+                  };
+
+                  await offlineManager.queueAction(offlineAction);
+                  set({ error: 'Plan deleted offline - will sync when online' });
+              }
           } catch (error) {
               console.error('Error removing plan:', error);
 
@@ -187,9 +246,35 @@ export const useScheduleStore = create<ScheduleState & ScheduleActions>()(
           });
 
           try {
-              // Make the actual API call
-              await planService.updatePlan(currentUser.uid, planId, updates);
-              // Success - optimistic update was correct, no need to change anything
+              if (offlineManager.isOnline) {
+                  await planService.updatePlan(currentUser.uid, planId, updates);
+
+                  // Cache updated plan for offline use
+                  const updatedPlan = optimisticPlans.find(p => p.id === planId);
+                  if (updatedPlan) {
+                      await offlineManager.cachePlan(updatedPlan);
+                  }
+              } else {
+                  // Queue for sync when online
+                  const offlineAction: OfflineAction = {
+                      type: 'UPDATE',
+                      endpoint: `/api/plans/${planId}`,
+                      method: 'PUT',
+                      data: updates,
+                      planId,
+                      timestamp: Date.now()
+                  };
+
+                  await offlineManager.queueAction(offlineAction);
+
+                  // Cache updated plan for offline use
+                  const updatedPlan = optimisticPlans.find(p => p.id === planId);
+                  if (updatedPlan) {
+                      await offlineManager.cachePlan(updatedPlan);
+                  }
+
+                  set({ error: 'Plan updated offline - will sync when online' });
+              }
           } catch (error) {
               console.error('Error updating plan:', error);
 

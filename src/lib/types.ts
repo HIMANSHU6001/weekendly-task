@@ -1,16 +1,32 @@
 import type {LucideIcon} from "lucide-react";
 
+export type Category =
+  | "lazy"
+  | "adventurous"
+  | "family"
+  | "foodie"
+  | "creative"
+  | "travel"
+  | "social"
+  | "all";
+
+export type CategoryInfo = {
+  value: Category;
+  label: string;
+  color: string;
+};
+
+export type Vibe = {
+  id: "happy" | "relaxed" | "energetic" | "romantic";
+  name: string;
+  icon: LucideIcon;
+};
+
 export type Activity = {
   id: string;
   name: string;
   icon: LucideIcon;
   category: CategoryInfo;
-};
-
-export type Vibe = {
-  id: "happy" | "relaxed" | "energetic";
-  name: string;
-  icon: LucideIcon;
 };
 
 export type ScheduledActivity = Activity & {
@@ -21,14 +37,6 @@ export type ScheduledActivity = Activity & {
 };
 
 export type Day = string;
-
-export type Category = "lazy" | "adventurous" | "family" | "all";
-
-export type CategoryInfo = {
-  value: Category;
-  label: string;
-  color: string;
-};
 
 export type Plan = {
   id: string;

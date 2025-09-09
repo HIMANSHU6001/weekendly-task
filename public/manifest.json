@@ -1,14 +1,44 @@
 {
   "name": "Weekendly",
   "short_name": "Weekendly",
-  "description": "Plan your weekends easily",
+  "description": "Plan your weekends easily - works offline too!",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#000000",
   "orientation": "portrait-primary",
   "scope": "/",
-  "categories": ["productivity", "lifestyle"],
+  "categories": [
+    "productivity",
+    "lifestyle"
+  ],
+  "prefer_related_applications": false,
+  "shortcuts": [
+    {
+      "name": "Create New Plan",
+      "short_name": "New Plan",
+      "description": "Create a new weekend plan",
+      "url": "/?action=new-plan",
+      "icons": [
+        {
+          "src": "/web-app-manifest-192x192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "View Plans",
+      "short_name": "Plans",
+      "description": "View your weekend plans",
+      "url": "/?action=view-plans",
+      "icons": [
+        {
+          "src": "/web-app-manifest-192x192.png",
+          "sizes": "192x192"
+        }
+      ]
+    }
+  ],
   "icons": [
     {
       "src": "/web-app-manifest-192x192.png",

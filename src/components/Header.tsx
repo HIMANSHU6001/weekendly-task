@@ -16,6 +16,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import Logo from "../../public/icons/Logo";
+import {OfflineIndicatorCompact} from "@/components/ui/offline-indicator";
 
 export function Header() {
   const {user} = useAuth();
@@ -37,6 +38,7 @@ export function Header() {
         </h1>
       </div>
       <div className="flex items-center gap-4">
+        <OfflineIndicatorCompact/>
         <SharePlan/>
         {user && (
           <DropdownMenu>

@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/form";
 import {useForm} from "react-hook-form";
 import Fuse from "fuse.js";
+import { LocationPicker } from "@/components/ui/location-picker";
 
 export function ActivitySelector() {
   const {addActivity, activePlanId, plans} = useScheduleStore();
@@ -36,11 +37,12 @@ export function ActivitySelector() {
   const [searchQuery, setSearchQuery] = useState("");
   const form = useForm({
     defaultValues: {
-      time: "10:00 AM",
+      time: "10:00",
       vibe: "happy",
       location: "",
     },
   });
+
 
   const fuse = useMemo(() => {
     const categoryFilteredActivities = selectedCategory === "all"
@@ -114,7 +116,9 @@ export function ActivitySelector() {
       });
       toast({
         title: `Added "${activity.name}"`,
-        description: `It's been added to ${firstDay}. You can drag it to other days!`,
+        description: location
+          ? `Added to ${firstDay} at ${location}. You can drag it to other days!`
+          : `Added to ${firstDay}. You can drag it to other days!`,
       });
       setOpenPopover("");
       form.reset();
@@ -135,7 +139,7 @@ export function ActivitySelector() {
           />
         </div>
       </div>
-      <ScrollArea className="h-full px-2">
+      <ScrollArea className="px-2">
         <div className="space-y-2 pr-2">
           {filteredActivities.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
@@ -165,7 +169,7 @@ export function ActivitySelector() {
                       <Plus className="h-4 w-4"/>
                     </Button>
                   </PopoverTrigger>
-                  <PopoverContent className="w-fit">
+                  <PopoverContent className="w-80">
                     <Form {...form}>
                       <form
                         onSubmit={form.handleSubmit(
@@ -178,38 +182,47 @@ export function ActivitySelector() {
                             Add {activity.name}
                           </h4>
                           <p className="text-sm text-muted-foreground">
-                            Set a time and vibe for this activity.
+                            Set a time, vibe and location for this activity.
                           </p>
                         </div>
-                        <div className="grid grid-cols-2 gap-4">
-                          <FormField
-                            control={form.control}
-                            name="time"
-                            render={({field}) => (
-                              <FormItem>
-                                <FormLabel>Time</FormLabel>
-                                <FormControl>
-                                  <Input {...field} />
-                                </FormControl>
-                              </FormItem>
-                            )}
-                          />
-                          <FormField
-                            control={form.control}
-                            name="location"
-                            render={({field}) => (
-                              <FormItem>
-                                <FormLabel>Location</FormLabel>
-                                <FormControl>
-                                  <Input
-                                    {...field}
-                                    placeholder="e.g. Central Park"
-                                  />
-                                </FormControl>
-                              </FormItem>
-                            )}
-                          />
-                        </div>
+
+                        <FormField
+                          control={form.control}
+                          name="time"
+                          render={({field}) => (
+                            <FormItem>
+                              <FormLabel>Time</FormLabel>
+                              <FormControl>
+                                <Input type="time" {...field} />
+                              </FormControl>
+                            </FormItem>
+                          )}
+                        />
+
+                        <FormField
+                          control={form.control}
+                          name="location"
+                          render={({field}) => (
+                            <FormItem>
+                              <FormLabel>Location (Optional)</FormLabel>
+                              <FormControl>
+                                <LocationPicker
+                                  value={field.value}
+                                  onChange={(location, placeDetails) => {
+                                    field.onChange(location);
+                                    // You can store additional place details if needed
+                                    if (placeDetails) {
+                                      console.log('Selected place:', placeDetails);
+                                    }
+                                  }}
+                                  placeholder="Search for a location..."
+                                  className="w-full"
+                                />
+                              </FormControl>
+                            </FormItem>
+                          )}
+                        />
+
                         <FormField
                           control={form.control}
                           name="vibe"
@@ -220,7 +233,7 @@ export function ActivitySelector() {
                                 <RadioGroup
                                   onValueChange={field.onChange}
                                   defaultValue={field.value}
-                                  className="flex items-center gap-4"
+                                  className="items-center grid grid-cols-2 gap-2"
                                 >
                                   {VIBES.map((vibe) => {
                                     const VibeIcon = vibe.icon;
@@ -239,8 +252,8 @@ export function ActivitySelector() {
                                           htmlFor={`vibe-popover-${activity.id}-${vibe.id}`}
                                           className="font-normal flex items-center gap-2 cursor-pointer"
                                         >
-                                          <VibeIcon className="h-5 w-5"/>
-                                          {vibe.name}
+                                          <VibeIcon className="h-4 w-4"/>
+                                          <span className="text-xs">{vibe.name}</span>
                                         </FormLabel>
                                       </FormItem>
                                     );

@@ -4,7 +4,7 @@ import React, {useState} from "react";
 import type {ScheduledActivity, Day} from "@/lib/types";
 import {Card, CardContent} from "@/components/ui/card";
 import {Button} from "@/components/ui/button";
-import {Trash2, Pencil, MapPin} from "lucide-react";
+import {Trash2, Pencil, MapPin, GripVertical} from "lucide-react";
 import {useScheduleStore} from "@/store/scheduleStore";
 import {VIBES, ACTIVITIES} from "@/lib/data";
 import {
@@ -77,19 +77,27 @@ export function ActivityCard({activity, day, isDragging = false}: ActivityCardPr
       <Card
         ref={setNodeRef}
         style={style}
-        {...attributes}
-        {...listeners}
         className={cn(
-          "activity-card relative group transition-shadow duration-300 hover:shadow-lg cursor-grab ",
+          "activity-card relative group transition-shadow duration-300 hover:shadow-lg cursor-grab",
           isSortableDragging && "opacity-50",
           isDragging && "shadow-xl"
         )}
+        {...attributes}
+        {...listeners}
       >
-        <CardContent className="p-4 flex items-start gap-4 h-full">
+        <CardContent className="p-4 flex items-start gap-3 h-full">
           <div
             className="absolute top-0 left-0 h-full w-2 rounded-l-lg"
             style={{backgroundColor: activity.category.color}}
           />
+
+          <div
+            className="md:hidden flex items-center justify-center w-6 h-full text-muted-foreground/60 cursor-grab active:cursor-grabbing touch-none"
+            {...attributes}
+            {...listeners}
+          >
+            <GripVertical className="h-5 w-5"/>
+          </div>
 
           <div className="flex-1 flex items-center gap-4">
             <ActivityIcon className="h-8 w-8" style={{color: activity.category.color}}/>
@@ -112,7 +120,7 @@ export function ActivityCard({activity, day, isDragging = false}: ActivityCardPr
 
           {showControls && (
             <div
-              className="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+              className="absolute top-2 right-2 flex items-center gap-1 lg:opacity-0 group-hover:opacity-100 transition-opacity">
               <DialogTrigger asChild>
                 <Button
                   variant="ghost"
@@ -146,7 +154,8 @@ export function ActivityCard({activity, day, isDragging = false}: ActivityCardPr
         <div className="grid gap-4 py-4">
           <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="time" className="text-right">Time</Label>
-            <Input id="time" value={editedTime} onChange={(e) => setEditedTime(e.target.value)} className="col-span-3"/>
+            <Input type='time' id="time" value={editedTime} onChange={(e) => setEditedTime(e.target.value)}
+                   className="col-span-3"/>
           </div>
           <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="location" className="text-right">Location</Label>
@@ -158,7 +167,7 @@ export function ActivityCard({activity, day, isDragging = false}: ActivityCardPr
             <RadioGroup value={editedVibeId}
                         onValueChange={(val: "happy" | "relaxed" | "energetic") => setEditedVibeId(val)}
                         className="col-span-3">
-              <div className="flex items-center gap-4">
+              <div className="flex flex-wrap items-center gap-4">
                 {VIBES.map(vibe => {
                   const VibeRadioIcon = vibe.icon;
                   return (

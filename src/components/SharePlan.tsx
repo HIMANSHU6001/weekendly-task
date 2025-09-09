@@ -12,10 +12,11 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import {useScheduleStore} from "@/store/scheduleStore";
-import {Share2, Waves, MapPin, Download} from "lucide-react";
+import {Waves, MapPin, Download, Share, Share2} from "lucide-react";
 import {cn} from "@/lib/utils";
 import {useAuth} from "@/hooks/use-auth";
 import {ACTIVITIES, VIBES} from "@/lib/data";
+import Logo from "@/public/icons/Logo";
 
 export function SharePlan() {
   const {plans, activePlanId} = useScheduleStore();
@@ -26,8 +27,7 @@ export function SharePlan() {
   if (!activePlan || !user) {
     return (
       <Button disabled>
-        <Share2 className="mr-2 h-4 w-4"/>
-        Share Plan
+        <Share className="mr-2 h-4 w-4"/>
       </Button>
     );
   }
@@ -135,19 +135,18 @@ export function SharePlan() {
   return (
     <Dialog>
       <DialogTrigger asChild>
-        <Button>
-          <Share2 className="mr-2 h-4 w-4"/>
-          Share Plan
+        <Button size='icon'>
+          <Share className="mx-auto h-6 w-6"/>
         </Button>
       </DialogTrigger>
-      <DialogContent className=" max-h-[90vh] overflow-scroll min-w-[90vw] m-3 thin-scrollbar">
-        <DialogHeader>
+      <DialogContent className="max-h-[90vh] overflow-y-scroll min-w-[95vw] lg:min-w-[90vw] invisible-scrollbar p-2 lg:p-4">
+        <DialogHeader className='p-3'>
           <DialogTitle>Your Weekend Plan</DialogTitle>
           <DialogDescription>
             Here&#39;s your shareable weekend plan. You can save it as an image and share!
           </DialogDescription>
         </DialogHeader>
-        <div className="py-4 ">
+        <div className="py-4">
           <div
             ref={posterRef}
             id="poster"
@@ -156,7 +155,7 @@ export function SharePlan() {
           >
             <div className="text-center mb-8">
               <div className="flex items-center justify-center gap-2">
-                <Waves className="h-8 w-8 text-gray-700"/>
+                <Logo className='h-8 w-8'/>
                 <h2 className="text-4xl font-bold text-gray-800">{name}</h2>
               </div>
             </div>
@@ -174,7 +173,7 @@ export function SharePlan() {
             </div>
           </div>
 
-          <div className="mt-6 flex justify-center gap-3">
+          <div className="mt-6 justify-center gap-3 flex flex-col lg:flex-row">
             <Button onClick={handleCapture} variant="outline">
               <Download className="mr-2 h-4 w-4"/>
               Download as Image
