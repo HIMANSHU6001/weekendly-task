@@ -12,7 +12,7 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import {useScheduleStore} from "@/store/scheduleStore";
-import {Waves, MapPin, Download, Share, Share2} from "lucide-react";
+import {MapPin, Download, Share, Share2} from "lucide-react";
 import {cn} from "@/lib/utils";
 import {useAuth} from "@/hooks/use-auth";
 import {ACTIVITIES, VIBES} from "@/lib/data";

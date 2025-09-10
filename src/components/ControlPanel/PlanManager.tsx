@@ -32,22 +32,19 @@ export function PlanManager() {
   const [isOpen, setIsOpen] = useState(false);
   const [newPlanName, setNewPlanName] = useState("");
   const [selectedColor, setSelectedColor] = useState(colors[0]);
-  const {toast} = useToast();
+  const {success, error} = useToast();
 
   const handleAddPlan = async (e: React.FormEvent) => {
     e.preventDefault();
     if (newPlanName.trim() === "") {
-      toast({
-        title: "Invalid Plan Name",
-        description: "Please enter a name for your weekend plan.",
-        variant: "destructive",
-      });
+      error("Please enter a name for your weekend plan.");
       return;
     }
     await addPlan(newPlanName, selectedColor);
     setNewPlanName("");
     setSelectedColor(colors[0]);
     setIsOpen(false);
+    success(`Created plan: ${newPlanName}`);
   };
 
   return (

@@ -32,7 +32,7 @@ export function ActivitySelector() {
   const schedule = activePlan?.schedule || {};
   const selectedCategory = activePlan?.category || "all";
 
-  const {toast} = useToast();
+  const {error, success} = useToast();
   const [openPopover, setOpenPopover] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const form = useForm({
@@ -69,37 +69,22 @@ export function ActivitySelector() {
     return searchResults.map(result => result.item);
   }, [selectedCategory, searchQuery, fuse]);
 
-  const handleAddActivity = (
-    activity: Activity,
-    values: { time: string; vibe: string; location: string }
-  ) => {
+  const addActivityToSchedule = (activity: Activity, values: any) => {
     const {time, vibe: vibeId, location} = values;
 
     if (!activePlanId) {
-      toast({
-        title: "No Active Plan",
-        description: "Please select or create a plan first.",
-        variant: "destructive",
-      });
+      error("Please select or create a plan first.");
       return;
     }
 
     if (!time || !vibeId) {
-      toast({
-        title: "Missing Details",
-        description: "Please set a time and vibe for your activity.",
-        variant: "destructive",
-      });
+      error("Please set a time and vibe for your activity.");
       return;
     }
 
     const firstDay = Object.keys(schedule)[0];
     if (!firstDay) {
-      toast({
-        title: "No Days in Schedule",
-        description: "Please add a day to your schedule first.",
-        variant: "destructive",
-      });
+      error("Please add a day to your schedule first.");
       return;
     }
 
@@ -114,12 +99,11 @@ export function ActivitySelector() {
         location,
         category: activity.category,
       });
-      toast({
-        title: `Added "${activity.name}"`,
-        description: location
-          ? `Added to ${firstDay} at ${location}. You can drag it to other days!`
-          : `Added to ${firstDay}. You can drag it to other days!`,
-      });
+      success(
+        location
+          ? `Added "${activity.name}" to ${firstDay} at ${location}. You can drag it to other days!`
+          : `Added "${activity.name}" to ${firstDay}. You can drag it to other days!`
+      );
       setOpenPopover("");
       form.reset();
     }
@@ -173,7 +157,7 @@ export function ActivitySelector() {
                     <Form {...form}>
                       <form
                         onSubmit={form.handleSubmit(
-                          (values) => handleAddActivity(activity, values)
+                          (values) => addActivityToSchedule(activity, values)
                         )}
                         className="grid gap-4"
                       >
@@ -210,7 +194,6 @@ export function ActivitySelector() {
                                   value={field.value}
                                   onChange={(location, placeDetails) => {
                                     field.onChange(location);
-                                    // You can store additional place details if needed
                                     if (placeDetails) {
                                       console.log('Selected place:', placeDetails);
                                     }

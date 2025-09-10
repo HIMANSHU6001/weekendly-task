@@ -1,14 +1,11 @@
-// Import for useState and useEffect
-import { useState, useEffect } from 'react';
+import {useState, useEffect} from 'react';
 
-// Offline utilities for managing app offline state and data sync
 
 export interface OfflineManager {
   isOnline: boolean;
   isOfflineReady: boolean;
   cachePlan: (plan: any) => Promise<void>;
   queueAction: (action: OfflineAction) => Promise<void>;
-  getOfflineStatus: () => Promise<boolean>;
   syncWhenOnline: () => Promise<void>;
 }
 
@@ -62,10 +59,9 @@ class OfflineService implements OfflineManager {
       console.log('[Offline] Gone offline, using cached data');
     });
 
-    // Listen for messages from service worker
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.addEventListener('message', (event) => {
-        const { type, data } = event.data;
+        const {type, data} = event.data;
         if (type === 'SYNC_COMPLETE') {
           console.log('[Offline] Background sync completed:', data);
         }
@@ -122,33 +118,12 @@ class OfflineService implements OfflineManager {
     }
   }
 
-  public async getOfflineStatus(): Promise<boolean> {
-    if (!this.sw) return this.isOnline;
-
-    return new Promise((resolve) => {
-      const channel = new MessageChannel();
-      channel.port1.onmessage = (event) => {
-        resolve(!event.data.isOffline);
-      };
-
-      navigator.serviceWorker.controller?.postMessage(
-        { type: 'GET_OFFLINE_STATUS' },
-        [channel.port2]
-      );
-
-      // Fallback timeout
-      setTimeout(() => resolve(this.isOnline), 1000);
-    });
-  }
-
   public async syncWhenOnline(): Promise<void> {
     if (!this.isOnline || !this.sw) return;
 
     try {
-      // Trigger background sync if supported
       if ('serviceWorker' in navigator && 'sync' in window.ServiceWorkerRegistration.prototype) {
         const registration = await navigator.serviceWorker.ready;
-        // Use type assertion since sync might not be in TypeScript definitions
         const syncManager = (registration as any).sync;
         if (syncManager) {
           await syncManager.register('sync-plans');
@@ -159,48 +134,10 @@ class OfflineService implements OfflineManager {
       console.error('[Offline] Error triggering sync:', error);
     }
   }
-
-  // Helper method to check if a response is from cache/offline
-  public static isOfflineResponse(response: Response): boolean {
-    return response.headers.get('X-Offline') === 'true';
-  }
-
-  // Helper method to wrap fetch calls with offline support
-  public async fetchWithOfflineSupport(
-    url: string,
-    options: RequestInit = {}
-  ): Promise<{ data: any; isOffline: boolean }> {
-    try {
-      const response = await fetch(url, options);
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-
-      return {
-        data,
-        isOffline: OfflineService.isOfflineResponse(response)
-      };
-    } catch (error) {
-      console.error('[Offline] Fetch failed, likely offline:', error);
-      throw error;
-    }
-  }
 }
 
-// Singleton instance
 export const offlineManager = new OfflineService();
 
-// Offline-aware fetch wrapper
-export async function offlineFetch(
-  url: string,
-  options: RequestInit = {}
-): Promise<{ data: any; isOffline: boolean }> {
-  return offlineManager.fetchWithOfflineSupport(url, options);
-}
-
-// Helper hook for React components
 export function useOfflineStatus() {
   const [isOnline, setIsOnline] = useState(offlineManager.isOnline);
   const [isOfflineReady, setIsOfflineReady] = useState(offlineManager.isOfflineReady);
@@ -208,7 +145,6 @@ export function useOfflineStatus() {
   useEffect(() => {
     const unsubscribe = offlineManager.onStatusChange(setIsOnline);
 
-    // Check if offline functionality is ready
     const checkOfflineReady = () => {
       setIsOfflineReady(offlineManager.isOfflineReady);
     };

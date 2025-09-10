@@ -1,75 +1,43 @@
-const CACHE_NAME = 'weekendly-v2';
-const STATIC_CACHE = 'weekendly-static-v2';
-const DYNAMIC_CACHE = 'weekendly-dynamic-v2';
-const API_CACHE = 'weekendly-api-v2';
-const OFFLINE_DB_NAME = 'weekendly-offline';
-const OFFLINE_DB_VERSION = 1;
-const SYNC_QUEUE_NAME = 'weekendly-sync-queue';
+const CACHE_NAME = 'weekendly-v3';
+const STATIC_CACHE = 'weekendly-static-v3';
 
-// Static resources to cache immediately
+// Only cache essential static assets that we know exist
 const STATIC_ASSETS = [
     '/',
     '/manifest.json',
+    '/offline.html'
+];
+
+// Assets to try caching but don't fail if they don't exist
+const OPTIONAL_ASSETS = [
     '/web-app-manifest-192x192.png',
     '/web-app-manifest-512x512.png',
-    '/favicon.ico',
-    '/offline.html' // We'll create this fallback page
+    '/favicon.ico'
 ];
 
-// API endpoints to cache
-const API_ENDPOINTS = [
-    '/api/plans',
-    '/api/auth'
-];
-
-// Initialize IndexedDB for offline data storage
-let offlineDB;
-
-function initOfflineDB() {
-    return new Promise((resolve, reject) => {
-        const request = indexedDB.open(OFFLINE_DB_NAME, OFFLINE_DB_VERSION);
-
-        request.onerror = () => reject(request.error);
-        request.onsuccess = () => {
-            offlineDB = request.result;
-            resolve(offlineDB);
-        };
-
-        request.onupgradeneeded = (event) => {
-            const db = event.target.result;
-
-            // Plans store
-            if (!db.objectStoreNames.contains('plans')) {
-                const plansStore = db.createObjectStore('plans', { keyPath: 'id' });
-                plansStore.createIndex('userId', 'userId', { unique: false });
-                plansStore.createIndex('lastModified', 'lastModified', { unique: false });
-            }
-
-            // Sync queue store
-            if (!db.objectStoreNames.contains('syncQueue')) {
-                const syncStore = db.createObjectStore('syncQueue', { keyPath: 'id', autoIncrement: true });
-                syncStore.createIndex('timestamp', 'timestamp', { unique: false });
-                syncStore.createIndex('type', 'type', { unique: false });
-            }
-
-            // User preferences store
-            if (!db.objectStoreNames.contains('userPrefs')) {
-                db.createObjectStore('userPrefs', { keyPath: 'key' });
-            }
-        };
-    });
-}
-
-// Install event - cache static assets
 self.addEventListener('install', (event) => {
-    console.log('[SW] Installing service worker v2');
+    console.log('[SW] Installing service worker v3');
     event.waitUntil(
         Promise.all([
-            caches.open(STATIC_CACHE).then((cache) => {
-                console.log('[SW] Caching static assets');
-                return cache.addAll(STATIC_ASSETS);
-            }),
-            initOfflineDB()
+            // Cache essential assets
+            caches.open(STATIC_CACHE).then(async (cache) => {
+                console.log('[SW] Caching essential assets');
+                try {
+                    await cache.addAll(STATIC_ASSETS);
+                } catch (error) {
+                    console.warn('[SW] Failed to cache some essential assets:', error);
+                }
+
+                // Try to cache optional assets individually
+                for (const asset of OPTIONAL_ASSETS) {
+                    try {
+                        await cache.add(asset);
+                        console.log('[SW] Cached optional asset:', asset);
+                    } catch (error) {
+                        console.warn('[SW] Failed to cache optional asset:', asset, error);
+                    }
+                }
+            })
         ]).then(() => {
             console.log('[SW] Skip waiting');
             return self.skipWaiting();
@@ -77,130 +45,91 @@ self.addEventListener('install', (event) => {
     );
 });
 
-// Activate event - clean old caches and claim clients
 self.addEventListener('activate', (event) => {
-    console.log('[SW] Activating service worker v2');
+    console.log('[SW] Activating service worker v3');
     event.waitUntil(
         Promise.all([
-            // Clean old caches
+            // Clean up old caches
             caches.keys().then((cacheNames) => {
                 return Promise.all(
                     cacheNames.map((cacheName) => {
-                        if (cacheName !== STATIC_CACHE &&
-                            cacheName !== DYNAMIC_CACHE &&
-                            cacheName !== API_CACHE &&
-                            cacheName !== CACHE_NAME) {
+                        if (cacheName !== STATIC_CACHE && cacheName !== CACHE_NAME) {
                             console.log('[SW] Deleting old cache:', cacheName);
                             return caches.delete(cacheName);
                         }
                     })
                 );
             }),
-            // Initialize offline DB if not already done
-            initOfflineDB(),
-            // Claim all clients
             self.clients.claim()
         ])
     );
 });
 
-// Fetch event - implement caching strategies
 self.addEventListener('fetch', (event) => {
-    const { request } = event;
+    const {request} = event;
     const url = new URL(request.url);
 
-    // Skip non-GET requests and chrome-extension requests
+    // Skip non-GET requests and extension requests
     if (request.method !== 'GET' || url.protocol.startsWith('chrome-extension')) {
         return;
     }
 
-    // Handle different types of requests with appropriate strategies
+    // Handle different types of requests
     if (url.pathname.startsWith('/api/')) {
-        // API requests - Network First with cache fallback
-        event.respondWith(handleApiRequest(request));
+        // Let API requests go through normally - Zustand handles the data
+        return;
     } else if (isStaticAsset(url.pathname)) {
-        // Static assets - Cache First
         event.respondWith(handleStaticAsset(request));
     } else {
-        // Navigation requests - Network First with offline fallback
         event.respondWith(handleNavigationRequest(request));
     }
 });
 
-// Handle API requests with network-first strategy
-async function handleApiRequest(request) {
-    const cache = await caches.open(API_CACHE);
+async function handleStaticAsset(request) {
+    const cache = await caches.open(STATIC_CACHE);
 
     try {
-        // Try network first
-        const networkResponse = await fetch(request);
-
-        if (networkResponse.ok) {
-            // Cache successful responses
-            cache.put(request, networkResponse.clone());
-
-            // If it's a plans API, also store in IndexedDB
-            if (request.url.includes('/api/plans')) {
-                await handlePlansData(request, networkResponse.clone());
-            }
-        }
-
-        return networkResponse;
-    } catch (error) {
-        console.log('[SW] Network failed, trying cache for:', request.url);
-
-        // Network failed, try cache
+        // Try cache first
         const cachedResponse = await cache.match(request);
         if (cachedResponse) {
             return cachedResponse;
         }
 
-        // If it's a plans request and we have offline data, return that
-        if (request.url.includes('/api/plans')) {
-            return await getOfflinePlansData(request);
-        }
-
-        // Return offline response for other API calls
-        return new Response(
-            JSON.stringify({ error: 'Offline', offline: true }),
-            {
-                status: 503,
-                headers: { 'Content-Type': 'application/json' }
-            }
-        );
-    }
-}
-
-// Handle static assets with cache-first strategy
-async function handleStaticAsset(request) {
-    const cache = await caches.open(STATIC_CACHE);
-    const cachedResponse = await cache.match(request);
-
-    if (cachedResponse) {
-        return cachedResponse;
-    }
-
-    try {
+        // Try network
         const networkResponse = await fetch(request);
         if (networkResponse.ok) {
+            // Cache successful responses
             cache.put(request, networkResponse.clone());
         }
         return networkResponse;
     } catch (error) {
         console.log('[SW] Failed to fetch static asset:', request.url);
+
+        // Try to return cached version as fallback
+        const cachedResponse = await cache.match(request);
+        if (cachedResponse) {
+            return cachedResponse;
+        }
+
+        // If it's a critical asset, return a minimal response
+        if (request.url.includes('manifest.json')) {
+            return new Response('{}', {
+                headers: {'Content-Type': 'application/json'}
+            });
+        }
+
         throw error;
     }
 }
 
-// Handle navigation requests
 async function handleNavigationRequest(request) {
-    const cache = await caches.open(DYNAMIC_CACHE);
-
     try {
-        // Try network first
+        // Try network first for navigation requests
         const networkResponse = await fetch(request);
 
         if (networkResponse.ok) {
+            // Cache successful navigation responses
+            const cache = await caches.open(STATIC_CACHE);
             cache.put(request, networkResponse.clone());
         }
 
@@ -208,241 +137,51 @@ async function handleNavigationRequest(request) {
     } catch (error) {
         console.log('[SW] Navigation network failed, trying cache for:', request.url);
 
-        // Try cache
+        // Try cached version
+        const cache = await caches.open(STATIC_CACHE);
         const cachedResponse = await cache.match(request);
         if (cachedResponse) {
             return cachedResponse;
         }
 
-        // Return offline page for document requests
+        // Fallback to offline page for document requests
         if (request.destination === 'document') {
             const offlinePage = await cache.match('/offline.html') ||
-                               await caches.match('/');
-            return offlinePage;
+                await cache.match('/');
+            if (offlinePage) {
+                return offlinePage;
+            }
         }
 
         throw error;
     }
 }
 
-// Handle plans data storage in IndexedDB
-async function handlePlansData(request, response) {
-    if (!offlineDB) {
-        await initOfflineDB();
-    }
-
-    try {
-        const data = await response.json();
-        const transaction = offlineDB.transaction(['plans'], 'readwrite');
-        const store = transaction.objectStore('plans');
-
-        if (Array.isArray(data)) {
-            // Multiple plans
-            data.forEach(plan => {
-                plan.lastModified = Date.now();
-                plan.synced = true;
-                store.put(plan);
-            });
-        } else if (data.id) {
-            // Single plan
-            data.lastModified = Date.now();
-            data.synced = true;
-            store.put(data);
-        }
-    } catch (error) {
-        console.log('[SW] Error storing plans data:', error);
-    }
-}
-
-// Get offline plans data from IndexedDB
-async function getOfflinePlansData(request) {
-    if (!offlineDB) {
-        await initOfflineDB();
-    }
-
-    try {
-        const transaction = offlineDB.transaction(['plans'], 'readonly');
-        const store = transaction.objectStore('plans');
-        const plans = [];
-
-        return new Promise((resolve) => {
-            const cursor = store.openCursor();
-            cursor.onsuccess = (event) => {
-                const result = event.target.result;
-                if (result) {
-                    plans.push(result.value);
-                    result.continue();
-                } else {
-                    resolve(new Response(
-                        JSON.stringify(plans),
-                        {
-                            status: 200,
-                            headers: {
-                                'Content-Type': 'application/json',
-                                'X-Offline': 'true'
-                            }
-                        }
-                    ));
-                }
-            };
-
-            cursor.onerror = () => {
-                resolve(new Response(
-                    JSON.stringify({ error: 'Offline storage error', offline: true }),
-                    {
-                        status: 503,
-                        headers: { 'Content-Type': 'application/json' }
-                    }
-                ));
-            };
-        });
-    } catch (error) {
-        return new Response(
-            JSON.stringify({ error: 'Offline storage error', offline: true }),
-            {
-                status: 503,
-                headers: { 'Content-Type': 'application/json' }
-            }
-        );
-    }
-}
-
-// Helper function to check if a path is a static asset
 function isStaticAsset(pathname) {
     return pathname.startsWith('/_next/') ||
-           pathname.startsWith('/static/') ||
-           pathname.includes('.') ||
-           pathname === '/manifest.json' ||
-           pathname === '/favicon.ico';
+        pathname.startsWith('/static/') ||
+        pathname.includes('.') ||
+        pathname === '/manifest.json' ||
+        pathname === '/favicon.ico' ||
+        pathname.includes('.png') ||
+        pathname.includes('.jpg') ||
+        pathname.includes('.svg') ||
+        pathname.includes('.css') ||
+        pathname.includes('.js');
 }
 
-// Background sync for offline actions
-self.addEventListener('sync', (event) => {
-    console.log('[SW] Background sync triggered:', event.tag);
-
-    if (event.tag === 'sync-plans') {
-        event.waitUntil(syncOfflineChanges());
-    }
-});
-
-// Sync offline changes when back online
-async function syncOfflineChanges() {
-    if (!offlineDB) {
-        await initOfflineDB();
-    }
-
-    try {
-        const transaction = offlineDB.transaction(['syncQueue'], 'readonly');
-        const store = transaction.objectStore('syncQueue');
-        const syncItems = [];
-
-        return new Promise((resolve) => {
-            const cursor = store.openCursor();
-            cursor.onsuccess = async (event) => {
-                const result = event.target.result;
-                if (result) {
-                    syncItems.push(result.value);
-                    result.continue();
-                } else {
-                    // Process sync items
-                    for (const item of syncItems) {
-                        await processSyncItem(item);
-                    }
-                    resolve();
-                }
-            };
-        });
-    } catch (error) {
-        console.log('[SW] Sync error:', error);
-    }
-}
-
-// Process individual sync items
-async function processSyncItem(item) {
-    try {
-        const response = await fetch(item.url, {
-            method: item.method,
-            headers: item.headers,
-            body: item.body
-        });
-
-        if (response.ok) {
-            // Remove from sync queue on success
-            const transaction = offlineDB.transaction(['syncQueue'], 'readwrite');
-            const store = transaction.objectStore('syncQueue');
-            store.delete(item.id);
-
-            console.log('[SW] Synced item:', item.id);
-        }
-    } catch (error) {
-        console.log('[SW] Failed to sync item:', item.id, error);
-    }
-}
-
-// Message handling for communication with the app
+// Simple message handler for any communication needs
 self.addEventListener('message', (event) => {
-    const { type, data } = event.data;
+    const {type, data} = event.data || {};
 
     switch (type) {
-        case 'CACHE_PLAN':
-            cachePlanOffline(data);
+        case 'SKIP_WAITING':
+            self.skipWaiting();
             break;
-        case 'QUEUE_SYNC':
-            queueSyncAction(data);
+        case 'GET_VERSION':
+            event.ports[0]?.postMessage({version: 'v3', cacheNames: [STATIC_CACHE]});
             break;
-        case 'GET_OFFLINE_STATUS':
-            event.ports[0].postMessage({
-                type: 'OFFLINE_STATUS',
-                isOffline: !navigator.onLine
-            });
-            break;
+        default:
+            console.log('[SW] Unknown message type:', type);
     }
 });
-
-// Cache plan data for offline use
-async function cachePlanOffline(planData) {
-    if (!offlineDB) {
-        await initOfflineDB();
-    }
-
-    try {
-        const transaction = offlineDB.transaction(['plans'], 'readwrite');
-        const store = transaction.objectStore('plans');
-
-        planData.lastModified = Date.now();
-        planData.synced = false;
-
-        store.put(planData);
-        console.log('[SW] Cached plan offline:', planData.id);
-    } catch (error) {
-        console.log('[SW] Error caching plan:', error);
-    }
-}
-
-// Queue sync action for when back online
-async function queueSyncAction(actionData) {
-    if (!offlineDB) {
-        await initOfflineDB();
-    }
-
-    try {
-        const transaction = offlineDB.transaction(['syncQueue'], 'readwrite');
-        const store = transaction.objectStore('syncQueue');
-
-        const syncItem = {
-            ...actionData,
-            timestamp: Date.now()
-        };
-
-        store.add(syncItem);
-        console.log('[SW] Queued sync action:', actionData.type);
-
-        // Register for background sync
-        if ('serviceWorker' in navigator && 'sync' in window.ServiceWorkerRegistration.prototype) {
-            const registration = await self.registration;
-            await registration.sync.register('sync-plans');
-        }
-    } catch (error) {
-        console.log('[SW] Error queueing sync action:', error);
-    }
-}

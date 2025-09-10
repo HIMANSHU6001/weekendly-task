@@ -15,8 +15,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import Logo from "../../public/icons/Logo";
 import {OfflineIndicatorCompact} from "@/components/ui/offline-indicator";
+import Logo from "../../public/icons/Logo";
+
 
 export function Header() {
   const {user} = useAuth();

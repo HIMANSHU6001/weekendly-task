@@ -22,47 +22,32 @@ export function DayManager() {
   const schedule = activePlan?.schedule || {};
 
   const [newDayName, setNewDayName] = useState("");
-  const {toast} = useToast();
+  const {error, success} = useToast();
   const [isOpen, setIsOpen] = useState(false);
 
   const handleAddDay = (e: React.FormEvent) => {
     e.preventDefault();
     if (!activePlanId) {
-      toast({
-        title: "No Active Plan",
-        description: "Please select or create a plan first.",
-        variant: "destructive",
-      });
+      error("Please select or create a plan first.");
       return;
     }
     if (newDayName.trim() === "") {
-      toast({
-        title: "Invalid Day Name",
-        description: "Please enter a name for the day.",
-        variant: "destructive",
-      });
+      error("Please enter a name for the day.");
       return;
     }
     const dayKey = newDayName.trim().toLowerCase().replace(/\s/g, '_');
     if (schedule[dayKey]) {
-      toast({
-        title: "Day Exists",
-        description: `A day named "${newDayName}" already exists.`,
-        variant: "destructive",
-      });
+      error(`A day named "${newDayName}" already exists.`);
       return;
     }
     if (Object.keys(schedule).length >= 4) {
-      toast({
-        title: "Maximum Days Reached",
-        description: "You can have a maximum of 4 days in your schedule.",
-        variant: "destructive",
-      });
+      error("You can have a maximum of 4 days in your schedule.");
       return;
     }
     addDay(newDayName.trim());
     setNewDayName("");
     setIsOpen(false);
+    success(`Added day: ${newDayName.trim()}`);
   };
 
   const dayCount = Object.keys(schedule).length;
