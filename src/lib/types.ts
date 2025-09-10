@@ -17,7 +17,7 @@ export type CategoryInfo = {
 };
 
 export type Vibe = {
-  id: "happy" | "relaxed" | "energetic" | "romantic";
+  id: "happy" | "relaxed" | "energetic" | "friends";
   name: string;
   icon: LucideIcon;
 };

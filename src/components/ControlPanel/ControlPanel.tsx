@@ -7,7 +7,7 @@ import {Separator} from "@/components/ui/separator";
 
 export function ControlPanel() {
   return (
-    <aside className="space-y-4 p-2  overflow-scroll thin-scrollbar">
+    <aside className="space-y-4 p-2 overflow-scroll thin-scrollbar">
       <PlanManager/>
       <Separator/>
       <CategorySelector/>

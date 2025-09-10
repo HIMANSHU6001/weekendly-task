@@ -200,33 +200,22 @@ export function Schedule() {
               <div
                 key={day}
                 onDragOver={(e) => handleDayDragOver(e, day)}
-                onDragLeave={() => setDraggedOverDay(null)}
                 onDrop={(e) => handleDayDrop(e, day)}
-                className={cn(
-                  "transition-all duration-300",
-                  draggingDayKey && draggedOverDay === day && "opacity-50"
-                )}
+                className="flex flex-col h-full"
               >
-                <Card className="border-none shadow-none bg-transparent">
-                  <DayColumn
-                    day={day}
-                    title={day.replace(/_/g, " ")}
-                    isDraggedOver={draggedOverDay === day && !!activeActivity}
-                  />
-                </Card>
+                <DayColumn
+                  day={day}
+                  title={day}
+                  isDraggedOver={draggedOverDay === day}
+                />
               </div>
             ))}
-            {days.length < 4 && !draggingDayKey && (
-              <Card className="border-none shadow-none bg-transparent">
-                <DayManager/>
-              </Card>
-            )}
           </div>
         </SortableContext>
 
         <DragOverlay>
           {activeActivity ? (
-            <div className="rotate-2 opacity-95 scale-105">
+            <div className="transform rotate-5">
               <ActivityCard
                 activity={activeActivity}
                 day=""
@@ -236,6 +225,10 @@ export function Schedule() {
           ) : null}
         </DragOverlay>
       </DndContext>
+
+      <div className="mt-8">
+        <DayManager/>
+      </div>
     </section>
   );
 }

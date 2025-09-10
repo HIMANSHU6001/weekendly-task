@@ -199,7 +199,6 @@ export function ActivitySelector() {
                                     }
                                   }}
                                   placeholder="Search for a location..."
-                                  className="w-full"
                                 />
                               </FormControl>
                             </FormItem>
@@ -210,35 +209,24 @@ export function ActivitySelector() {
                           control={form.control}
                           name="vibe"
                           render={({field}) => (
-                            <FormItem className="space-y-3">
+                            <FormItem>
                               <FormLabel>Vibe</FormLabel>
                               <FormControl>
                                 <RadioGroup
                                   onValueChange={field.onChange}
-                                  defaultValue={field.value}
-                                  className="items-center grid grid-cols-2 gap-2"
+                                  value={field.value}
+                                  className="flex flex-wrap gap-2"
                                 >
                                   {VIBES.map((vibe) => {
                                     const VibeIcon = vibe.icon;
                                     return (
-                                      <FormItem
-                                        key={vibe.id}
-                                        className="flex items-center space-x-2 space-y-0"
-                                      >
-                                        <FormControl>
-                                          <RadioGroupItem
-                                            value={vibe.id}
-                                            id={`vibe-popover-${activity.id}-${vibe.id}`}
-                                          />
-                                        </FormControl>
-                                        <FormLabel
-                                          htmlFor={`vibe-popover-${activity.id}-${vibe.id}`}
-                                          className="font-normal flex items-center gap-2 cursor-pointer"
-                                        >
+                                      <div key={vibe.id} className="flex items-center space-x-2">
+                                        <RadioGroupItem value={vibe.id} id={vibe.id}/>
+                                        <div className="flex items-center gap-1">
                                           <VibeIcon className="h-4 w-4"/>
-                                          <span className="text-xs">{vibe.name}</span>
-                                        </FormLabel>
-                                      </FormItem>
+                                          <span className="text-sm">{vibe.name}</span>
+                                        </div>
+                                      </div>
                                     );
                                   })}
                                 </RadioGroup>
@@ -246,7 +234,10 @@ export function ActivitySelector() {
                             </FormItem>
                           )}
                         />
-                        <Button type="submit">Add to Schedule</Button>
+
+                        <Button type="submit" className="w-full">
+                          Add Activity
+                        </Button>
                       </form>
                     </Form>
                   </PopoverContent>

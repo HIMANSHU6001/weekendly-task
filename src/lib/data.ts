@@ -21,7 +21,7 @@ import {
   Trees,
   PartyPopper,
   ShoppingBag,
-  Heart,
+  Users,
 } from "lucide-react";
 
 export const CATEGORIES = {
@@ -62,5 +62,5 @@ export const VIBES: Vibe[] = [
   {id: "happy", name: "Happy", icon: Smile},
   {id: "relaxed", name: "Relaxed", icon: Wind},
   {id: "energetic", name: "Energetic", icon: Zap},
-  {id: "romantic", name: "Romantic", icon: Heart},
+  {id: "friends", name: "Friends", icon: Users},
 ];

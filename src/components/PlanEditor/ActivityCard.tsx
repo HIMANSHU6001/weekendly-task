@@ -78,7 +78,7 @@ export function ActivityCard({activity, day, isDragging = false}: ActivityCardPr
         ref={setNodeRef}
         style={style}
         className={cn(
-          "activity-card relative group transition-shadow duration-300 hover:shadow-lg cursor-grab",
+          "activity-card relative group transition-shadow duration-300 hover:shadow-lg cursor-grab py-2",
           isSortableDragging && "opacity-50",
           isDragging && "shadow-xl"
         )}
@@ -115,7 +115,8 @@ export function ActivityCard({activity, day, isDragging = false}: ActivityCardPr
 
           <div
             className="absolute bottom-2 right-2 flex items-center gap-1 transition-opacity">
-            <VibeIcon className="h-5 w-5 text-primary"/>
+            <VibeIcon className="h-5 w-5 text-primary" strokeWidth={1.5}/>
+            <span className="text-sm text-muted-foreground">{vibeData?.name || activity.vibe.name}</span>
           </div>
 
           {showControls && (
