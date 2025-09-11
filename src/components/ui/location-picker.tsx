@@ -1,89 +1,72 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
-import { Loader } from '@googlemaps/js-api-loader';
+import { useEffect, useState } from 'react';
 import { Input } from '@/components/ui/input';
 import { MapPin, Loader2 } from 'lucide-react';
 
 interface LocationPickerProps {
   value: string;
-  onChange: (location: string, placeDetails?: google.maps.places.PlaceResult) => void;
+  onChange: (location: string, placeDetails?: any) => void;
   placeholder?: string;
   className?: string;
 }
 
 export function LocationPicker({
-  value,
-  onChange,
-  placeholder = "Search for a location...",
-  className = ""
-}: LocationPickerProps) {
-  const inputRef = useRef<HTMLInputElement>(null);
-  const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
+                                 value,
+                                 onChange,
+                                 placeholder = "Search for a location...",
+                                 className = ""
+                               }: LocationPickerProps) {
   const [isLoading, setIsLoading] = useState(false);
-  const [isGoogleMapsLoaded, setIsGoogleMapsLoaded] = useState(false);
+  const [coords, setCoords] = useState<{ lat: number; lon: number } | null>(null);
+  const [suggestions, setSuggestions] = useState<any[]>([]);
 
+  // Get user location once
   useEffect(() => {
-    const initializeGoogleMaps = async () => {
-      // You'll need to add your Google Maps API key here
-      const GOOGLE_MAPS_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => setCoords({ lat: pos.coords.latitude, lon: pos.coords.longitude }),
+        () => console.warn("Location access denied, fallback to global search")
+      );
+    }
+  }, []);
 
-      if (!GOOGLE_MAPS_API_KEY) {
-        console.warn('Google Maps API key not found. Please add NEXT_PUBLIC_GOOGLE_MAPS_API_KEY to your environment variables.');
-        return;
-      }
+  // Fetch suggestions from LocationIQ
+  const fetchSuggestions = async (query: string) => {
+    const key = process.env.NEXT_PUBLIC_LOCATIONIQ_KEY;
+    if (!key) {
+      console.error("LocationIQ API key missing");
+      return [];
+    }
 
-      try {
-        setIsLoading(true);
+    const proximity = coords ? `&viewbox=${coords.lon-0.05},${coords.lat+0.05},${coords.lon+0.05},${coords.lat-0.05}&bounded=1` : "";
+    const url = `https://us1.locationiq.com/v1/search?key=${key}&q=${encodeURIComponent(
+      query
+    )}&limit=5&format=json${proximity}`;
 
-        const loader = new Loader({
-          apiKey: GOOGLE_MAPS_API_KEY,
-          version: 'weekly',
-          libraries: ['places']
-        });
+    setIsLoading(true);
+    try {
+      const res = await fetch(url);
+      const data = await res.json();
+      return Array.isArray(data) ? data : [];
+    } catch (err) {
+      console.error("LocationIQ search error:", err);
+      return [];
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
-        await loader.load();
-        setIsGoogleMapsLoaded(true);
-
-        if (inputRef.current) {
-          // Initialize the autocomplete
-          autocompleteRef.current = new google.maps.places.Autocomplete(
-            inputRef.current,
-            {
-              types: ['establishment', 'geocode'],
-              fields: ['name', 'formatted_address', 'place_id', 'geometry', 'types']
-            }
-          );
-
-          // Add place changed listener
-          autocompleteRef.current.addListener('place_changed', () => {
-            const place = autocompleteRef.current?.getPlace();
-
-            if (place && place.formatted_address) {
-              onChange(place.formatted_address, place);
-            }
-          });
-        }
-      } catch (error) {
-        console.error('Error loading Google Maps:', error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    initializeGoogleMaps();
-
-    // Cleanup
-    return () => {
-      if (autocompleteRef.current) {
-        google.maps.event.clearInstanceListeners(autocompleteRef.current);
-      }
-    };
-  }, [onChange]);
-
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleInputChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const newValue = e.target.value;
     onChange(newValue);
+
+    if (newValue.length > 2) {
+      const results = await fetchSuggestions(newValue);
+      setSuggestions(results);
+    } else {
+      setSuggestions([]);
+    }
   };
 
   return (
@@ -91,12 +74,10 @@ export function LocationPicker({
       <div className="relative">
         <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
         <Input
-          ref={inputRef}
           type="text"
           value={value}
           onChange={handleInputChange}
-          placeholder={isLoading ? "Loading Google Maps..." : placeholder}
-          disabled={isLoading || !isGoogleMapsLoaded}
+          placeholder={isLoading ? "Loading..." : placeholder}
           className={`pl-10 ${className}`}
         />
         {isLoading && (
@@ -104,10 +85,21 @@ export function LocationPicker({
         )}
       </div>
 
-      {!isGoogleMapsLoaded && !isLoading && (
-        <p className="text-xs text-muted-foreground mt-1">
-          Google Maps not available. You can still enter locations manually.
-        </p>
+      {suggestions.length > 0 && (
+        <ul className="absolute z-50 bg-white border rounded mt-1 w-full max-h-48 overflow-y-auto shadow-md">
+          {suggestions.map((place, idx) => (
+            <li
+              key={idx}
+              className="px-3 py-2 hover:bg-gray-100 cursor-pointer"
+              onClick={() => {
+                onChange(place.display_name, place);
+                setSuggestions([]);
+              }}
+            >
+              {place.display_name}
+            </li>
+          ))}
+        </ul>
       )}
     </div>
   );

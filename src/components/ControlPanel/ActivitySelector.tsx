@@ -24,7 +24,7 @@ import {
 } from "@/components/ui/form";
 import {useForm} from "react-hook-form";
 import Fuse from "fuse.js";
-import { LocationPicker } from "@/components/ui/location-picker";
+import {LocationPicker} from "@/components/ui/location-picker";
 
 export function ActivitySelector() {
   const {addActivity, activePlanId, plans} = useScheduleStore();
