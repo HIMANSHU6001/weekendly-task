@@ -1,10 +1,10 @@
 "use client";
 
 import React, {useState} from "react";
-import type {ScheduledActivity, Day} from "@/lib/types";
+import type {ScheduledActivity, Day, LocationData} from "@/lib/types";
 import {Card, CardContent} from "@/components/ui/card";
 import {Button} from "@/components/ui/button";
-import {Trash2, Pencil, MapPin, GripVertical} from "lucide-react";
+import {Trash2, Pencil, MapPin, GripVertical, ExternalLink} from "lucide-react";
 import {useScheduleStore} from "@/store/scheduleStore";
 import {VIBES, ACTIVITIES} from "@/lib/data";
 import {
@@ -108,6 +108,17 @@ export function ActivityCard({activity, day, isDragging = false}: ActivityCardPr
                 <div className="flex items-center gap-1 text-xs text-muted-foreground mt-1">
                   <MapPin className="h-3 w-3"/>
                   <span>{activity.location}</span>
+                  {activity.locationData?.coordinates && (
+                    <a
+                      href={`https://www.google.com/maps?q=${activity.locationData.coordinates.lat},${activity.locationData.coordinates.lon}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="ml-1 text-primary hover:text-primary/80 transition-colors"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <ExternalLink className="h-6 w-6 p-1.5 hover:bg-gray-300 rounded-sm" />
+                    </a>
+                  )}
                 </div>
               )}
             </div>
@@ -116,7 +127,7 @@ export function ActivityCard({activity, day, isDragging = false}: ActivityCardPr
           <div
             className="absolute bottom-2 right-2 flex items-center gap-1 transition-opacity">
             <VibeIcon className="h-5 w-5 text-primary" strokeWidth={1.5}/>
-            <span className="text-sm text-muted-foreground">{vibeData?.name || activity.vibe.name}</span>
+            <span className="text-sm text-muted-foreground hidden lg:block">{vibeData?.name || activity.vibe.name}</span>
           </div>
 
           {showControls && (

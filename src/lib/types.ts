@@ -29,11 +29,20 @@ export type Activity = {
   category: CategoryInfo;
 };
 
+export type LocationData = {
+  name: string;
+  coordinates?: {
+    lat: number;
+    lon: number;
+  };
+};
+
 export type ScheduledActivity = Activity & {
   instanceId: string;
   time: string;
   vibe: Vibe;
   location?: string;
+  locationData?: LocationData;
 };
 
 export type Day = string;

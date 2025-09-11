@@ -3,7 +3,7 @@
 import React, {useState, useMemo} from "react";
 import {useScheduleStore} from "@/store/scheduleStore";
 import {ACTIVITIES, VIBES} from "@/lib/data";
-import type {Activity} from "@/lib/types";
+import type {Activity, LocationData} from "@/lib/types";
 import {Button} from "@/components/ui/button";
 import {
   Popover,
@@ -35,6 +35,7 @@ export function ActivitySelector() {
   const {error, success} = useToast();
   const [openPopover, setOpenPopover] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
+  const [locationData, setLocationData] = useState<LocationData | null>(null);
   const form = useForm({
     defaultValues: {
       time: "10:00",
@@ -97,6 +98,7 @@ export function ActivitySelector() {
         time,
         vibe,
         location,
+        locationData: locationData || undefined,
         category: activity.category,
       });
       success(
@@ -106,6 +108,7 @@ export function ActivitySelector() {
       );
       setOpenPopover("");
       form.reset();
+      setLocationData(null);
     }
   };
 
@@ -194,8 +197,16 @@ export function ActivitySelector() {
                                   value={field.value}
                                   onChange={(location, placeDetails) => {
                                     field.onChange(location);
-                                    if (placeDetails) {
-                                      console.log('Selected place:', placeDetails);
+                                    if (placeDetails && placeDetails.lat && placeDetails.lon) {
+                                      setLocationData({
+                                        name: location,
+                                        coordinates: {
+                                          lat: parseFloat(placeDetails.lat),
+                                          lon: parseFloat(placeDetails.lon)
+                                        }
+                                      });
+                                    } else {
+                                      setLocationData(location ? { name: location } : null);
                                     }
                                   }}
                                   placeholder="Search for a location..."
